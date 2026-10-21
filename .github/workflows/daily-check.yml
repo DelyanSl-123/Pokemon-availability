@@ -1,0 +1,58 @@
+name: Daily Pokemon TCG check
+
+on:
+  schedule:
+    # GitHub cron is always UTC: 06:00 UTC = 09:00 in Sofia during summer time, 08:00 in winter.
+    - cron: '0 6 * * *'
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      # The SQLite file remembers what was seen before, so "NEW" / "BACK IN STOCK" flags work.
+      - name: Restore previous results
+        id: db-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: backend/data
+          key: tracker-db-${{ github.run_id }}
+          restore-keys: tracker-db-
+
+      - name: Check shops and send email
+        run: npm run check
+        env:
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+
+      - name: Save results for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: backend/data
+          key: tracker-db-${{ github.run_id }}

@@ -11,7 +11,7 @@ export interface MailConfig {
 }
 
 export function mailConfigFromEnv(env: NodeJS.ProcessEnv = process.env): MailConfig {
-  const port = Number(env.SMTP_PORT ?? 587);
+  const port = Number(env.SMTP_PORT || 587); // `||`: an empty value counts as unset
   return {
     host: env.SMTP_HOST || undefined,
     port,

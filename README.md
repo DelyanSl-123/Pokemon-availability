@@ -27,6 +27,16 @@ Single-process setup: run `npm run build` in `frontend/`, then `npm run build &&
 
 The daily job runs inside the backend process (default 09:00, Europe/Sofia), so the backend has to be running. Keep it alive with `pm2`, `systemd`, or Docker.
 
+## Run daily on GitHub Actions (no server needed)
+
+`.github/workflows/daily-check.yml` runs `npm run check` every day at 06:00 UTC (09:00 Sofia in summer, 08:00 in winter), checks all shops once and sends the email.
+
+1. In the repo go to **Settings → Secrets and variables → Actions → New repository secret** and add: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (see "Email" below). `MAIL_TO` is optional and defaults to delyan.sl@gmail.com.
+2. Edit the shop list in `backend/shops.json` (commit the change; add `"searchUrl"` or `"enabled": false` per shop if needed).
+3. Test it: **Actions → Daily Pokemon TCG check → Run workflow**.
+
+Notes: the SQLite file is kept between runs with the Actions cache (so NEW / BACK IN STOCK flags work); if the cache is ever lost, everything simply shows as NEW once. GitHub may block scheduled workflows in public repos after 60 days without activity, and some shops block data-centre IPs, so check the first runs' output.
+
 ## Email
 
 Without `SMTP_HOST` the digest is only printed to the server log. For Gmail: turn on 2-step verification, create an **App password**, then use `smtp.gmail.com`, port `465`, `SMTP_SECURE=true`, your address as `SMTP_USER` and the app password as `SMTP_PASS`.
