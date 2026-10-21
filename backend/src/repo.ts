@@ -1,0 +1,191 @@
+import type { DB } from './db';
+import type { ExtractedProduct, RunSummary, Settings, Shop } from './types';
+
+/* ---------------- shops ---------------- */
+
+interface ShopRow {
+  id: number;
+  name: string;
+  base_url: string;
+  search_url: string;
+  enabled: number;
+  respect_robots: number;
+}
+
+const toShop = (r: ShopRow): Shop => ({
+  id: r.id,
+  name: r.name,
+  baseUrl: r.base_url,
+  searchUrl: r.search_url,
+  enabled: r.enabled === 1,
+  respectRobots: r.respect_robots === 1,
+});
+
+export function listShops(db: DB): Shop[] {
+  return (db.prepare('SELECT * FROM shops ORDER BY id').all() as ShopRow[]).map(toShop);
+}
+
+export function getShop(db: DB, id: number): Shop | undefined {
+  const row = db.prepare('SELECT * FROM shops WHERE id = ?').get(id) as ShopRow | undefined;
+  return row ? toShop(row) : undefined;
+}
+
+export function createShop(
+  db: DB,
+  input: { name: string; baseUrl: string; searchUrl: string; respectRobots?: boolean },
+): Shop {
+  const info = db
+    .prepare('INSERT INTO shops (name, base_url, search_url, respect_robots) VALUES (?, ?, ?, ?)')
+    .run(input.name, input.baseUrl, input.searchUrl, input.respectRobots === false ? 0 : 1);
+  return getShop(db, Number(info.lastInsertRowid))!;
+}
+
+export function updateShop(
+  db: DB,
+  id: number,
+  patch: Partial<Pick<Shop, 'name' | 'searchUrl' | 'enabled' | 'respectRobots'>>,
+): Shop | undefined {
+  const current = getShop(db, id);
+  if (!current) return undefined;
+  const next = { ...current, ...patch };
+  db.prepare('UPDATE shops SET name = ?, search_url = ?, enabled = ?, respect_robots = ? WHERE id = ?').run(
+    next.name,
+    next.searchUrl,
+    next.enabled ? 1 : 0,
+    next.respectRobots ? 1 : 0,
+    id,
+  );
+  return getShop(db, id);
+}
+
+export function deleteShop(db: DB, id: number): boolean {
+  return db.prepare('DELETE FROM shops WHERE id = ?').run(id).changes > 0;
+}
+
+/* ---------------- settings ---------------- */
+
+export function getSettings(db: DB, defaults: Settings): Settings {
+  const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+  const stored = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return {
+    mailTo: stored.mailTo ?? defaults.mailTo,
+    cron: stored.cron ?? defaults.cron,
+    query: stored.query ?? defaults.query,
+  };
+}
+
+export function saveSettings(db: DB, patch: Partial<Settings>): void {
+  const stmt = db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+  );
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) stmt.run(key, value);
+  }
+}
+
+/* ---------------- products ---------------- */
+
+interface ProductRow {
+  id: number;
+  shop_id: number;
+  shop_name: string;
+  url: string;
+  title: string;
+  price: number | null;
+  currency: string | null;
+  in_stock: number | null;
+  image_url: string | null;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface StoredProduct {
+  id: number;
+  shopId: number;
+  shopName: string;
+  url: string;
+  title: string;
+  price: number | null;
+  currency: string | null;
+  inStock: boolean | null;
+  imageUrl: string | null;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+const boolToDb = (v: boolean | null): number | null => (v === null ? null : v ? 1 : 0);
+
+export function upsertProduct(
+  db: DB,
+  shopId: number,
+  p: ExtractedProduct,
+  nowIso: string,
+): { isNew: boolean; backInStock: boolean } {
+  const existing = db.prepare('SELECT id, in_stock FROM products WHERE shop_id = ? AND url = ?').get(shopId, p.url) as
+    | { id: number; in_stock: number | null }
+    | undefined;
+
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO products (shop_id, url, title, price, currency, in_stock, image_url, first_seen, last_seen)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(shopId, p.url, p.title, p.price, p.currency, boolToDb(p.inStock), p.imageUrl, nowIso, nowIso);
+    return { isNew: true, backInStock: false };
+  }
+
+  db.prepare(
+    `UPDATE products SET title = ?, price = ?, currency = ?, in_stock = ?, image_url = COALESCE(?, image_url), last_seen = ?
+     WHERE id = ?`,
+  ).run(p.title, p.price, p.currency, boolToDb(p.inStock), p.imageUrl, nowIso, existing.id);
+
+  return { isNew: false, backInStock: existing.in_stock === 0 && p.inStock === true };
+}
+
+export function listProducts(db: DB, filter: { shopId?: number; inStockOnly?: boolean } = {}): StoredProduct[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (filter.shopId !== undefined) {
+    where.push('p.shop_id = ?');
+    params.push(filter.shopId);
+  }
+  if (filter.inStockOnly) where.push('p.in_stock = 1');
+
+  const rows = db
+    .prepare(
+      `SELECT p.*, s.name AS shop_name FROM products p JOIN shops s ON s.id = p.shop_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY p.last_seen DESC, p.id DESC`,
+    )
+    .all(...params) as ProductRow[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    shopId: r.shop_id,
+    shopName: r.shop_name,
+    url: r.url,
+    title: r.title,
+    price: r.price,
+    currency: r.currency,
+    inStock: r.in_stock === null ? null : r.in_stock === 1,
+    imageUrl: r.image_url,
+    firstSeen: r.first_seen,
+    lastSeen: r.last_seen,
+  }));
+}
+
+/* ---------------- runs ---------------- */
+
+export function insertRun(db: DB, startedAt: string, source: string): number {
+  return Number(db.prepare('INSERT INTO runs (started_at, source) VALUES (?, ?)').run(startedAt, source).lastInsertRowid);
+}
+
+export function finishRun(db: DB, id: number, finishedAt: string, summary: RunSummary): void {
+  db.prepare('UPDATE runs SET finished_at = ?, summary = ? WHERE id = ?').run(finishedAt, JSON.stringify(summary), id);
+}
+
+export function listRuns(db: DB, limit = 20): RunSummary[] {
+  const rows = db
+    .prepare('SELECT summary FROM runs WHERE summary IS NOT NULL ORDER BY id DESC LIMIT ?')
+    .all(limit) as { summary: string }[];
+  return rows.map((r) => JSON.parse(r.summary) as RunSummary);
+}
