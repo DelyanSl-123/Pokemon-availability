@@ -64,19 +64,23 @@ async function main() {
   const service = createService({ db, mail: mailConfigFromEnv(), defaults });
   const { summary, email } = await service.runAndNotify('schedule');
 
-  console.log(`Checked ${summary.shops.length} shop(s), ${summary.products.length} product(s) found.`);
+  const lines: string[] = [
+    `Checked ${summary.shops.length} shop(s), ${summary.products.length} product(s) found.`,
+  ];
   for (const s of summary.shops) {
     const detail = s.status === 'ok' ? `${s.found} found, ${s.newCount} new` : `${s.status}: ${s.message ?? ''}`;
-    console.log(`  - ${s.shopName}: ${detail}`);
+    lines.push(`- ${s.shopName}: ${detail}`);
+  }
+  lines.push(email?.sent ? `Email sent to ${defaults.mailTo}.` : `EMAIL NOT SENT: ${email?.reason ?? 'disabled'}`);
+  console.log(lines.join('\n'));
+
+  // Show the result on the workflow run page (Summary), not only in the raw log.
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Pokémon TCG check\n\n${lines.join('\n')}\n`);
   }
 
-  if (email?.sent) {
-    console.log(`Email sent to ${defaults.mailTo}.`);
-  } else {
-    console.log(`Email not sent: ${email?.reason ?? 'disabled'}`);
-    // Fail the run when SMTP is configured but sending failed, so the problem is visible.
-    if (process.env.SMTP_HOST) process.exitCode = 1;
-  }
+  // Fail the run when no email went out, so a missing/wrong SMTP setup is not hidden behind a green tick.
+  if (!email?.sent) process.exitCode = 1;
 }
 
 main().catch((e) => {
