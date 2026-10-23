@@ -3,7 +3,8 @@
     "url": "www.ozone.bg"
   },
   {
-    "url": "www.toyzzshop.bg"
+    "url": "https://toyzzshop.bg",
+    "searchUrl": "https://toyzzshop.bg/catalogsearch/result/?q={query}"
   },
   {
     "url": "https://www.pokemoncenter.com",

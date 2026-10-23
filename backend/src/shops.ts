@@ -4,7 +4,7 @@
  */
 const PRESETS: Record<string, string> = {
   'ozone.bg': 'https://www.ozone.bg/instantsearchplus/result/?q={query}',
-  'toyzzshop.bg': 'https://www.toyzzshop.bg/search?q={query}',
+  'toyzzshop.bg': 'https://toyzzshop.bg/catalogsearch/result/?q={query}',
 };
 
 export function defaultSearchUrl(origin: string): string {

@@ -54,7 +54,7 @@ Built-in presets (unverified, edit them if a search returns nothing):
 | Shop | Search URL |
 | --- | --- |
 | ozone.bg | `https://www.ozone.bg/instantsearchplus/result/?q={query}` |
-| toyzzshop.bg | `https://www.toyzzshop.bg/search?q={query}` |
+| toyzzshop.bg | `https://toyzzshop.bg/catalogsearch/result/?q={query}` |
 
 ## How product detection works
 
