@@ -10,15 +10,22 @@ export interface MailConfig {
   from: string;
 }
 
+/** Trims whitespace/newlines and wrapping quotes that often sneak in when pasting secrets. */
+function clean(v: string | undefined): string | undefined {
+  const t = v?.trim().replace(/^["'](.*)["']$/, '$1').trim();
+  return t ? t : undefined;
+}
+
 export function mailConfigFromEnv(env: NodeJS.ProcessEnv = process.env): MailConfig {
-  const port = Number(env.SMTP_PORT || 587); // `||`: an empty value counts as unset
+  const port = Number(clean(env.SMTP_PORT) || 587);
+  const secure = clean(env.SMTP_SECURE);
   return {
-    host: env.SMTP_HOST || undefined,
+    host: clean(env.SMTP_HOST),
     port,
-    secure: env.SMTP_SECURE ? env.SMTP_SECURE === 'true' : port === 465,
-    user: env.SMTP_USER || undefined,
-    pass: env.SMTP_PASS || undefined,
-    from: env.MAIL_FROM || env.SMTP_USER || 'pokemon-tracker@localhost',
+    secure: secure ? secure.toLowerCase() === 'true' : port === 465,
+    user: clean(env.SMTP_USER),
+    pass: clean(env.SMTP_PASS)?.replace(/\s+/g, ''), // Google shows app passwords with spaces
+    from: clean(env.MAIL_FROM) || clean(env.SMTP_USER) || 'pokemon-tracker@localhost',
   };
 }
 

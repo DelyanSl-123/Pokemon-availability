@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDigest, sendDigest, type MailConfig } from '../src/mailer';
+import { buildDigest, mailConfigFromEnv, sendDigest, type MailConfig } from '../src/mailer';
 import type { FoundProduct, RunSummary } from '../src/types';
 
 const product = (over: Partial<FoundProduct>): FoundProduct => ({
@@ -94,5 +94,31 @@ describe('sendDigest', () => {
     expect(res.sent).toBe(false);
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+});
+
+describe('mailConfigFromEnv', () => {
+  it('cleans pasted values', () => {
+    const cfg = mailConfigFromEnv({
+      SMTP_HOST: ' "smtp.gmail.com"\n',
+      SMTP_PORT: '465 ',
+      SMTP_USER: 'me@gmail.com ',
+      SMTP_PASS: 'abcd efgh ijkl mnop',
+      MAIL_FROM: '',
+    } as NodeJS.ProcessEnv);
+    expect(cfg).toMatchObject({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      user: 'me@gmail.com',
+      pass: 'abcdefghijklmnop',
+      from: 'me@gmail.com',
+    });
+  });
+
+  it('treats empty values as unset', () => {
+    const cfg = mailConfigFromEnv({ SMTP_HOST: '', SMTP_PORT: '' } as NodeJS.ProcessEnv);
+    expect(cfg.host).toBeUndefined();
+    expect(cfg.port).toBe(587);
   });
 });
