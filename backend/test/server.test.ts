@@ -39,7 +39,7 @@ describe('API', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/shops',
-      payload: { url: 'example.bg', searchUrl: 'https://example.bg/search' },
+      payload: { url: 'example.bg', searchUrl: 'not a url' },
     });
     expect(res.statusCode).toBe(400);
   });

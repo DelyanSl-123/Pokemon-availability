@@ -29,12 +29,15 @@ export function normalizeShopInput(input: { url: string; name?: string; searchUr
   const host = parsed.hostname.replace(/^www\./, '');
 
   const searchUrl = input.searchUrl?.trim() || defaultSearchUrl(baseUrl);
-  if (!searchUrl.includes('{query}')) {
-    throw new Error('Search URL must contain the {query} placeholder');
-  }
-  new URL(searchUrl.replace('{query}', 'test')); // validates the template
+  // Either a search template containing {query}, or a fixed category/listing page URL.
+  new URL(searchUrl.replace('{query}', 'test')); // throws if it is not a valid URL
 
   return { name: input.name?.trim() || host, baseUrl, searchUrl };
+}
+
+/** A URL without {query} is a fixed listing/category page (every product on it is checked). */
+export function isCategoryPage(template: string): boolean {
+  return !template.includes('{query}');
 }
 
 export function buildSearchUrl(template: string, query: string): string {

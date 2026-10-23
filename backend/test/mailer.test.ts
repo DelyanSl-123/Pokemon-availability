@@ -45,6 +45,13 @@ describe('buildDigest', () => {
     expect(d.html).toContain('<a href="https://www.ozone.bg/p/1">Pokemon TCG Booster</a>');
   });
 
+  it('labels out-of-stock products', () => {
+    const d = buildDigest(summary);
+    expect(d.text).toContain('[OUT OF STOCK] Pokemon TCG ETB');
+    expect(d.html).toContain('[OUT OF STOCK]</b></span> <a href="https://www.ozone.bg/p/2">');
+    expect(d.text).not.toContain('[OUT OF STOCK] Pokemon TCG Booster');
+  });
+
   it('mentions shops that could not be checked', () => {
     const d = buildDigest(summary);
     expect(d.text).toContain('== toyzzshop.bg (0 found) ==');

@@ -83,6 +83,15 @@ describe('extractProducts', () => {
     });
   });
 
+  it('keeps every product on a category page when the keyword filter is off', () => {
+    const products = extractProducts(CARDS_HTML, base, { filterPokemon: false });
+    expect(products.map((p) => p.title)).toEqual([
+      'Pokémon TCG Scarlet & Violet Booster Pack',
+      'LEGO City Fire Station',
+      'Pokemon TCG Elite Trainer Box',
+    ]);
+  });
+
   it('returns an empty list for a page without products', () => {
     expect(extractProducts('<html><body><p>No results</p></body></html>', base)).toEqual([]);
   });

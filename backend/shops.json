@@ -1,4 +1,13 @@
 [
-  { "url": "www.ozone.bg" },
-  { "url": "www.toyzzshop.bg" }
+  {
+    "url": "www.ozone.bg"
+  },
+  {
+    "url": "www.toyzzshop.bg"
+  },
+  {
+    "url": "https://www.pokemoncenter.com",
+    "name": "Pokemon Center UK",
+    "searchUrl": "https://www.pokemoncenter.com/en-gb/category/tcg-cards"
+  }
 ]

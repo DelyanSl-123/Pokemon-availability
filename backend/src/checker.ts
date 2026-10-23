@@ -2,7 +2,7 @@ import type { DB } from './db';
 import { extractProducts } from './extract';
 import { fetchPage as defaultFetchPage, type PageFetcher } from './fetcher';
 import { finishRun, insertRun, listShops, upsertProduct } from './repo';
-import { buildSearchUrl } from './shops';
+import { buildSearchUrl, isCategoryPage } from './shops';
 import type { FoundProduct, RunSummary, ShopRunResult } from './types';
 
 export interface CheckDeps {
@@ -60,7 +60,9 @@ export async function runCheck(
     }
 
     try {
-      const extracted = extractProducts(outcome.html, outcome.url);
+      const extracted = extractProducts(outcome.html, outcome.url, {
+        filterPokemon: !isCategoryPage(shop.searchUrl),
+      });
       const seenAt = now().toISOString();
 
       const save = db.transaction(() => {

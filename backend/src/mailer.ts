@@ -43,6 +43,7 @@ function priceLabel(p: FoundProduct): string {
 
 function flags(p: FoundProduct): string[] {
   const out: string[] = [];
+  if (p.inStock === false) out.push('OUT OF STOCK');
   if (p.isNew) out.push('NEW');
   if (p.backInStock) out.push('BACK IN STOCK');
   return out;
@@ -95,7 +96,9 @@ export function buildDigest(summary: RunSummary): Digest {
       const prefix = f.length ? `[${f.join(', ')}] ` : '';
       textParts.push(`- ${prefix}${p.title} | ${priceLabel(p)} | ${stockLabel(p)}`, `  ${p.url}`);
       htmlParts.push(
-        `<li>${f.length ? `<b>[${esc(f.join(', '))}]</b> ` : ''}<a href="${esc(p.url)}">${esc(p.title)}</a> ` +
+        `<li>${p.inStock === false ? '<span style="color:#b42318"><b>[OUT OF STOCK]</b></span> ' : ''}${
+          f.filter((x) => x !== 'OUT OF STOCK').length ? `<b>[${esc(f.filter((x) => x !== 'OUT OF STOCK').join(', '))}]</b> ` : ''
+        }<a href="${esc(p.url)}">${esc(p.title)}</a> ` +
           `— ${esc(priceLabel(p))} — ${esc(stockLabel(p))}</li>`,
       );
     }

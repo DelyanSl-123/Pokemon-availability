@@ -28,7 +28,7 @@ const shopCreateSchema = z.object({
 
 const shopPatchSchema = z.object({
   name: z.string().min(1).optional(),
-  searchUrl: z.string().includes('{query}', { message: 'Must contain {query}' }).optional(),
+  searchUrl: z.string().url({ message: 'Must be a valid URL (use {query} for search pages)' }).optional(),
   enabled: z.boolean().optional(),
   respectRobots: z.boolean().optional(),
 });

@@ -209,7 +209,11 @@ function fromAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
 }
 
 /** Extracts Pokémon TCG products from a shop search-results page. */
-export function extractProducts(html: string, baseUrl: string): ExtractedProduct[] {
+export function extractProducts(
+  html: string,
+  baseUrl: string,
+  opts: { filterPokemon?: boolean } = {},
+): ExtractedProduct[] {
   const $ = cheerio.load(html);
 
   const merged = new Map<string, ExtractedProduct>();
@@ -227,7 +231,9 @@ export function extractProducts(html: string, baseUrl: string): ExtractedProduct
 
   fromJsonLd($, baseUrl).forEach(add);
   fromCards($, baseUrl).forEach(add);
-  if (merged.size === 0) fromAnchors($, baseUrl).forEach(add);
+  if (merged.size === 0 && opts.filterPokemon !== false) fromAnchors($, baseUrl).forEach(add);
 
-  return [...merged.values()].filter(isPokemonTcg);
+  const all = [...merged.values()];
+  // On a Pokémon TCG category page every product counts, so no keyword filter is applied.
+  return opts.filterPokemon === false ? all : all.filter(isPokemonTcg);
 }
