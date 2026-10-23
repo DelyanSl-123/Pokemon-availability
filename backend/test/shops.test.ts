@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildSearchUrl, isCategoryPage, normalizeShopInput } from '../src/shops';
+import { buildSearchUrl, isCategoryPage, listsOnlyPokemon, normalizeShopInput } from '../src/shops';
 
 describe('normalizeShopInput', () => {
   it('accepts a bare domain', () => {
     const shop = normalizeShopInput({ url: 'www.ozone.bg' });
     expect(shop.name).toBe('ozone.bg');
     expect(shop.baseUrl).toBe('https://www.ozone.bg');
-    expect(shop.searchUrl).toContain('{query}');
+    expect(shop.searchUrl).toBe('https://www.ozone.bg/pazeli-2d-3d/nastolni-igri/trading-card-games/pokemon/');
   });
 
   it('reduces a full URL to its origin and uses a generic search URL for unknown shops', () => {
@@ -33,6 +33,13 @@ describe('normalizeShopInput', () => {
     expect(shop.searchUrl).toBe('https://www.pokemoncenter.com/en-gb/category/tcg-cards');
     expect(isCategoryPage(shop.searchUrl)).toBe(true);
     expect(isCategoryPage('https://a.test/s?q={query}')).toBe(false);
+  });
+
+  it('only trusts category pages whose URL mentions Pokémon / TCG', () => {
+    expect(listsOnlyPokemon('https://www.ozone.bg/pazeli-2d-3d/nastolni-igri/trading-card-games/pokemon/')).toBe(true);
+    expect(listsOnlyPokemon('https://www.pokemoncenter.com/en-gb/category/tcg-cards')).toBe(true);
+    expect(listsOnlyPokemon('https://toyzzshop.bg/nastolni-igri')).toBe(false);
+    expect(listsOnlyPokemon('https://a.test/search?q={query}')).toBe(false);
   });
 
   it('rejects a search URL that is not a URL', () => {

@@ -53,8 +53,8 @@ Built-in presets (unverified, edit them if a search returns nothing):
 
 | Shop | Search URL |
 | --- | --- |
-| ozone.bg | `https://www.ozone.bg/instantsearchplus/result/?q={query}` |
-| toyzzshop.bg | `https://toyzzshop.bg/catalogsearch/result/?q={query}` |
+| ozone.bg | `https://www.ozone.bg/pazeli-2d-3d/nastolni-igri/trading-card-games/pokemon/` (category page; their robots.txt disallows search) |
+| toyzzshop.bg | `https://toyzzshop.bg/nastolni-igri` (board-games category, filtered for Pokémon TCG; their robots.txt disallows search) |
 
 ## How product detection works
 

@@ -1,10 +1,13 @@
 [
   {
-    "url": "www.ozone.bg"
+    "url": "https://www.ozone.bg",
+    "name": "ozone.bg",
+    "searchUrl": "https://www.ozone.bg/pazeli-2d-3d/nastolni-igri/trading-card-games/pokemon/"
   },
   {
     "url": "https://toyzzshop.bg",
-    "searchUrl": "https://toyzzshop.bg/catalogsearch/result/?q={query}"
+    "name": "toyzzshop.bg",
+    "searchUrl": "https://toyzzshop.bg/nastolni-igri"
   },
   {
     "url": "https://www.pokemoncenter.com",
