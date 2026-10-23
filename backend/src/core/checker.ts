@@ -1,9 +1,9 @@
-import type { DB } from './db';
-import { extractProducts } from './extract';
-import { fetchPage as defaultFetchPage, type PageFetcher } from './fetcher';
-import { finishRun, insertRun, listShops, upsertProduct } from './repo';
-import { buildSearchUrl, listsOnlyPokemon } from './shops';
-import type { FoundProduct, RunSummary, ShopRunResult } from './types';
+import type { DB } from '../db/connection';
+import { extractProducts } from '../scraping/extract';
+import { fetchPage as defaultFetchPage, type PageFetcher } from '../scraping/fetcher';
+import { finishRun, insertRun, listShops, upsertProduct } from '../db/repository';
+import { buildSearchUrl, listsOnlyPokemon } from '../shops/shop-urls';
+import type { FoundProduct, RunSummary, ShopRunResult } from '../types';
 
 export interface CheckDeps {
   db: DB;

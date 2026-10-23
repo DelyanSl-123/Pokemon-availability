@@ -5,6 +5,32 @@ Checks a list of web shops once a day for Pokémon TCG products and emails you w
 - `backend/` TypeScript, Fastify, SQLite (better-sqlite3), Cheerio, node-cron, nodemailer
 - `frontend/` React + Vite + TypeScript: manage shops, see products, run a check, edit email/schedule
 
+## Project structure
+
+```
+.github/workflows/daily-check.yml   daily scheduled run (GitHub Actions)
+backend/
+  config/shops.json                 shops to check (used by the daily run)
+  src/
+    index.ts                        long-running server: API + built-in scheduler
+    cli.ts                          one-shot run: sync shops, check, email, exit
+    types.ts                        shared types
+    api/server.ts                   REST API (Fastify)
+    core/                           checker.ts (run a check), service.ts (check + email), scheduler.ts (cron)
+    scraping/                       fetcher.ts (HTTP + robots.txt), robots.ts (parser), extract.ts (find products)
+    shops/shop-urls.ts              shop URL helpers and rules
+    mail/mailer.ts                  email digest + SMTP sending
+    db/                             connection.ts (SQLite + schema), repository.ts (queries)
+  test/                             mirrors src/, plus fixtures/ (sample HTML)
+frontend/
+  src/
+    App.tsx                         page layout and state
+    api/client.ts                   backend API client and types
+    components/                     ShopRow, StockBadge
+    utils/format.ts                 small helpers
+    styles/app.css
+```
+
 ## Run it
 
 Needs Node 20+ (22 recommended). Run these on the machine that will stay on (PC, Raspberry Pi, VPS).
@@ -32,7 +58,7 @@ The daily job runs inside the backend process (default 09:00, Europe/Sofia), so 
 `.github/workflows/daily-check.yml` runs `npm run check` every day at 06:00 UTC (09:00 Sofia in summer, 08:00 in winter), checks all shops once and sends the email.
 
 1. In the repo go to **Settings → Secrets and variables → Actions → New repository secret** and add: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (see "Email" below). `MAIL_TO` is optional and defaults to delyan.sl@gmail.com.
-2. Edit the shop list in `backend/shops.json` (commit the change; add `"searchUrl"` or `"enabled": false` per shop if needed).
+2. Edit the shop list in `backend/config/shops.json` (commit the change; add `"searchUrl"` or `"enabled": false` per shop if needed).
 3. Test it: **Actions → Daily Pokemon TCG check → Run workflow**.
 
 Notes: the SQLite file is kept between runs with the Actions cache (so NEW / BACK IN STOCK flags work); if the cache is ever lost, everything simply shows as NEW once. GitHub may block scheduled workflows in public repos after 60 days without activity, and some shops block data-centre IPs, so check the first runs' output.
@@ -58,7 +84,7 @@ Built-in presets (unverified, edit them if a search returns nothing):
 
 ## How product detection works
 
-For each shop's search-results page the parser tries, in order: schema.org JSON-LD products, common product-card markup (title, link, price in лв/BGN/€, in/out-of-stock text), then plain links mentioning Pokémon. Results are kept only if they look like trading-card products (Pokémon + TCG/booster/карти/Elite Trainer/tin/…). This is generic by design; if a particular shop is missed, add a dedicated parser for it in `backend/src/extract.ts` (the test fixtures in `backend/test/` show the pattern).
+For each shop's search-results page the parser tries, in order: schema.org JSON-LD products, common product-card markup (title, link, price in лв/BGN/€, in/out-of-stock text), then plain links mentioning Pokémon. Results are kept only if they look like trading-card products (Pokémon + TCG/booster/карти/Elite Trainer/tin/…). This is generic by design; if a particular shop is missed, add a dedicated parser for it in `backend/src/scraping/extract.ts` (the HTML fixtures in `backend/test/fixtures/` show the test pattern).
 
 ## Things to know
 

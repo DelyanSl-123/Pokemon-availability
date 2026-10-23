@@ -1,5 +1,5 @@
 import * as nodemailer from 'nodemailer';
-import type { FoundProduct, RunSummary } from './types';
+import type { FoundProduct, RunSummary } from '../types';
 
 export interface MailConfig {
   host?: string;

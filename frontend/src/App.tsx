@@ -1,52 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { api, type Product, type RunOutcome, type RunSummary, type Settings, type Shop } from './api';
-
-const fmtDate = (iso: string) => new Date(iso).toLocaleString();
-
-function StockBadge({ inStock }: { inStock: boolean | null }) {
-  if (inStock === true) return <span className="badge ok">In stock</span>;
-  if (inStock === false) return <span className="badge bad">Out of stock</span>;
-  return <span className="badge muted">Unknown</span>;
-}
-
-function ShopRow({ shop, onChange, onDelete }: { shop: Shop; onChange: (patch: Partial<Shop>) => void; onDelete: () => void }) {
-  const [searchUrl, setSearchUrl] = useState(shop.searchUrl);
-  useEffect(() => setSearchUrl(shop.searchUrl), [shop.searchUrl]);
-
-  return (
-    <tr>
-      <td>
-        <strong>{shop.name}</strong>
-        <div className="sub">{shop.baseUrl}</div>
-      </td>
-      <td>
-        <input
-          className="wide"
-          value={searchUrl}
-          onChange={(e) => setSearchUrl(e.target.value)}
-          onBlur={() => searchUrl !== shop.searchUrl && onChange({ searchUrl })}
-          aria-label={`Search URL for ${shop.name}`}
-        />
-      </td>
-      <td className="center">
-        <input type="checkbox" checked={shop.enabled} onChange={(e) => onChange({ enabled: e.target.checked })} aria-label="Enabled" />
-      </td>
-      <td className="center">
-        <input
-          type="checkbox"
-          checked={shop.respectRobots}
-          onChange={(e) => onChange({ respectRobots: e.target.checked })}
-          aria-label="Respect robots.txt"
-        />
-      </td>
-      <td className="right">
-        <button className="link danger" onClick={onDelete}>
-          Remove
-        </button>
-      </td>
-    </tr>
-  );
-}
+import { api, type Product, type RunOutcome, type RunSummary, type Settings, type Shop } from './api/client';
+import { ShopRow } from './components/ShopRow';
+import { StockBadge } from './components/StockBadge';
+import { fmtDate } from './utils/format';
 
 export default function App() {
   const [shops, setShops] = useState<Shop[]>([]);

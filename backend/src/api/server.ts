@@ -3,12 +3,12 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import * as cron from 'node-cron';
 import { z } from 'zod';
-import type { DB } from './db';
-import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from './repo';
-import type { Scheduler } from './scheduler';
-import type { Service } from './service';
-import { normalizeShopInput } from './shops';
-import type { Settings } from './types';
+import type { DB } from '../db/connection';
+import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from '../db/repository';
+import type { Scheduler } from '../core/scheduler';
+import type { Service } from '../core/service';
+import { normalizeShopInput } from '../shops/shop-urls';
+import type { Settings } from '../types';
 
 export interface ServerDeps {
   db: DB;

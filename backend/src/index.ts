@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { openDb } from './db';
-import { mailConfigFromEnv } from './mailer';
-import { createShop, getSettings, listShops } from './repo';
-import { createScheduler } from './scheduler';
-import { buildServer } from './server';
-import { createService } from './service';
-import { normalizeShopInput } from './shops';
+import { openDb } from './db/connection';
+import { mailConfigFromEnv } from './mail/mailer';
+import { createShop, getSettings, listShops } from './db/repository';
+import { createScheduler } from './core/scheduler';
+import { buildServer } from './api/server';
+import { createService } from './core/service';
+import { normalizeShopInput } from './shops/shop-urls';
 import type { Settings } from './types';
 
 async function main() {

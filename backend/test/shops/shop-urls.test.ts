@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSearchUrl, isCategoryPage, listsOnlyPokemon, normalizeShopInput } from '../src/shops';
+import { buildSearchUrl, isCategoryPage, listsOnlyPokemon, normalizeShopInput } from '../../src/shops/shop-urls';
 
 describe('normalizeShopInput', () => {
   it('accepts a bare domain', () => {

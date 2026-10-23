@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDigest, mailConfigFromEnv, sendDigest, type MailConfig } from '../src/mailer';
-import type { FoundProduct, RunSummary } from '../src/types';
+import { buildDigest, mailConfigFromEnv, sendDigest, type MailConfig } from '../../src/mail/mailer';
+import type { FoundProduct, RunSummary } from '../../src/types';
 
 const product = (over: Partial<FoundProduct>): FoundProduct => ({
   title: 'Pokemon TCG Booster',

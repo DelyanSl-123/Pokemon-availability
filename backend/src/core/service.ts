@@ -1,9 +1,9 @@
 import { runCheck } from './checker';
-import type { DB } from './db';
-import type { PageFetcher } from './fetcher';
-import { sendDigest, buildDigest, type MailConfig, type SendResult } from './mailer';
-import { getSettings } from './repo';
-import type { RunSummary, Settings } from './types';
+import type { DB } from '../db/connection';
+import type { PageFetcher } from '../scraping/fetcher';
+import { sendDigest, buildDigest, type MailConfig, type SendResult } from '../mail/mailer';
+import { getSettings } from '../db/repository';
+import type { RunSummary, Settings } from '../types';
 
 export interface ServiceDeps {
   db: DB;

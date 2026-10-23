@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRobots } from '../src/robots';
+import { parseRobots } from '../../src/scraping/robots';
 
 const TXT = `
 # comment

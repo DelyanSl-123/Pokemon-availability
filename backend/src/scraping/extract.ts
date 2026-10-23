@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { ExtractedProduct } from './types';
+import type { ExtractedProduct } from '../types';
 
 /** Matches Latin and Cyrillic spellings (Pokémon / Pokemon / Покемон). */
 export const POKEMON_RE = /pok[eé]mon|покемон/i;

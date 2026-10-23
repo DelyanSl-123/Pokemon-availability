@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { extractProducts, findPrice, isPokemonTcg, parseNumber } from '../src/extract';
-import { ANCHORS_ONLY_HTML, CARDS_HTML, JSON_LD_HTML } from './fixtures';
+import { extractProducts, findPrice, isPokemonTcg, parseNumber } from '../../src/scraping/extract';
+import { ANCHORS_ONLY_HTML, CARDS_HTML, JSON_LD_HTML } from '../fixtures/html';
 
 describe('parseNumber', () => {
   it.each([

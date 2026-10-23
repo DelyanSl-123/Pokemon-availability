@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { openDb } from '../src/db';
-import { buildServer } from '../src/server';
+import { openDb } from '../../src/db/connection';
+import { buildServer } from '../../src/api/server';
 
 async function setup() {
   const db = openDb(':memory:');

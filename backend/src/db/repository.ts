@@ -1,5 +1,5 @@
-import type { DB } from './db';
-import type { ExtractedProduct, RunSummary, Settings, Shop } from './types';
+import type { DB } from './connection';
+import type { ExtractedProduct, RunSummary, Settings, Shop } from '../types';
 
 /* ---------------- shops ---------------- */
 

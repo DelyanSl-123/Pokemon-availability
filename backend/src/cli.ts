@@ -1,15 +1,15 @@
 /**
  * One-shot run for schedulers such as GitHub Actions: sync the shop list from
- * shops.json, check every shop once, send the email digest, then exit.
+ * config/shops.json, check every shop once, send the email digest, then exit.
  */
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { openDb, type DB } from './db';
-import { mailConfigFromEnv } from './mailer';
-import { createShop, deleteShop, listShops, updateShop } from './repo';
-import { createService } from './service';
-import { normalizeShopInput } from './shops';
+import { openDb, type DB } from './db/connection';
+import { mailConfigFromEnv } from './mail/mailer';
+import { createShop, deleteShop, listShops, updateShop } from './db/repository';
+import { createService } from './core/service';
+import { normalizeShopInput } from './shops/shop-urls';
 import type { Settings } from './types';
 
 interface ShopEntry {
@@ -19,7 +19,7 @@ interface ShopEntry {
   enabled?: boolean;
 }
 
-/** Makes the database match shops.json (adds, updates and removes shops). */
+/** Makes the database match config/shops.json (adds, updates and removes shops). */
 function syncShops(db: DB, file: string): void {
   const entries = JSON.parse(fs.readFileSync(file, 'utf8')) as ShopEntry[];
 
@@ -46,7 +46,7 @@ function syncShops(db: DB, file: string): void {
 
 async function main() {
   const dbPath = process.env.DB_PATH ?? path.resolve(process.cwd(), 'data', 'tracker.db');
-  const shopsFile = process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'shops.json');
+  const shopsFile = process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json');
 
   const defaults: Settings = {
     mailTo: process.env.MAIL_TO || 'delyan.sl@gmail.com',

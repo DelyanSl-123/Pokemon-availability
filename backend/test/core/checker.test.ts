@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { runCheck } from '../src/checker';
-import { openDb } from '../src/db';
-import type { PageFetcher } from '../src/fetcher';
-import { createShop, listProducts, listRuns, updateShop } from '../src/repo';
-import { CARDS_HTML, CARDS_HTML_RESTOCKED } from './fixtures';
+import { runCheck } from '../../src/core/checker';
+import { openDb } from '../../src/db/connection';
+import type { PageFetcher } from '../../src/scraping/fetcher';
+import { createShop, listProducts, listRuns, updateShop } from '../../src/db/repository';
+import { CARDS_HTML, CARDS_HTML_RESTOCKED } from '../fixtures/html';
 
 const now = () => new Date('2026-10-21T07:00:00Z');
 
