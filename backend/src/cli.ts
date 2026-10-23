@@ -80,10 +80,15 @@ async function main() {
   }
 
   // Fail the run when no email went out, so a missing/wrong SMTP setup is not hidden behind a green tick.
-  if (!email?.sent) process.exitCode = 1;
+  if (!email?.sent) {
+    // `::error::` shows the reason as an annotation at the top of the run page.
+    console.log(`::error title=Email not sent::${email?.reason ?? 'disabled'}`);
+    process.exitCode = 1;
+  }
 }
 
 main().catch((e) => {
+  console.log(`::error title=Check crashed::${e instanceof Error ? e.message : String(e)}`);
   console.error(e);
   process.exit(1);
 });

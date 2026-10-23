@@ -35,16 +35,18 @@ export async function runCheck(
     const shop = shops[i];
     if (i > 0 && delayMs > 0) await sleep(delayMs);
 
+    const searchPage = buildSearchUrl(shop.searchUrl, opts.query);
     const base: ShopRunResult = {
       shopId: shop.id,
       shopName: shop.name,
+      searchUrl: searchPage,
       status: 'ok',
       found: 0,
       newCount: 0,
       backInStock: 0,
     };
 
-    const outcome = await fetchPage(buildSearchUrl(shop.searchUrl, opts.query), {
+    const outcome = await fetchPage(searchPage, {
       respectRobots: shop.respectRobots,
     });
 

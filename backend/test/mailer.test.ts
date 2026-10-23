@@ -23,7 +23,7 @@ const summary: RunSummary = {
   source: 'manual',
   query: 'pokemon tcg',
   shops: [
-    { shopId: 1, shopName: 'ozone.bg', status: 'ok', found: 2, newCount: 1, backInStock: 0 },
+    { shopId: 1, shopName: 'ozone.bg', searchUrl: 'https://www.ozone.bg/search?q=pokemon', status: 'ok', found: 2, newCount: 1, backInStock: 0 },
     { shopId: 2, shopName: 'toyzzshop.bg', status: 'blocked', message: 'Disallowed by robots.txt', found: 0, newCount: 0, backInStock: 0 },
   ],
   products: [
@@ -37,7 +37,9 @@ describe('buildDigest', () => {
     const d = buildDigest(summary);
     expect(d.subject).toContain('1 in stock, 1 new');
     expect(d.subject).toContain('2026-10-21');
-    expect(d.text).toContain('== ozone.bg ==');
+    expect(d.text).toContain('== ozone.bg (2 found) ==');
+    expect(d.text).toContain('Page: https://www.ozone.bg/search?q=pokemon');
+    expect(d.html).toContain('<a href="https://www.ozone.bg/search?q=pokemon">');
     expect(d.text).toContain('[NEW] Pokemon TCG Booster | 12.99 BGN | in stock');
     expect(d.text).toContain('https://www.ozone.bg/p/1');
     expect(d.html).toContain('<a href="https://www.ozone.bg/p/1">Pokemon TCG Booster</a>');
@@ -45,7 +47,7 @@ describe('buildDigest', () => {
 
   it('mentions shops that could not be checked', () => {
     const d = buildDigest(summary);
-    expect(d.text).toContain('== toyzzshop.bg ==');
+    expect(d.text).toContain('== toyzzshop.bg (0 found) ==');
     expect(d.text).toContain('Disallowed by robots.txt');
   });
 

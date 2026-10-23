@@ -30,6 +30,8 @@ export type ShopStatus = 'ok' | 'blocked' | 'error';
 export interface ShopRunResult {
   shopId: number;
   shopName: string;
+  /** The shop search-results page that was checked (link for the email). */
+  searchUrl?: string;
   status: ShopStatus;
   message?: string;
   found: number;

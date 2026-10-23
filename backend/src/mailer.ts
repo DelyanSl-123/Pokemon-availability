@@ -70,8 +70,12 @@ export function buildDigest(summary: RunSummary): Digest {
       .filter((p) => p.shopId === shop.shopId)
       .sort((a, b) => Number(b.inStock === true) - Number(a.inStock === true));
 
-    textParts.push(`== ${shop.shopName} ==`);
-    htmlParts.push(`<h3>${esc(shop.shopName)}</h3>`);
+    textParts.push(`== ${shop.shopName} (${items.length} found) ==`);
+    htmlParts.push(`<h3>${esc(shop.shopName)} (${items.length} found)</h3>`);
+    if (shop.searchUrl) {
+      textParts.push(`Page: ${shop.searchUrl}`);
+      htmlParts.push(`<p>Page: <a href="${esc(shop.searchUrl)}">${esc(shop.searchUrl)}</a></p>`);
+    }
 
     if (shop.status !== 'ok') {
       const msg = `Could not check this page (${shop.status}): ${shop.message ?? 'unknown problem'}`;
