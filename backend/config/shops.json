@@ -13,5 +13,25 @@
     "url": "https://www.pokemoncenter.com",
     "name": "Pokemon Center UK",
     "searchUrl": "https://www.pokemoncenter.com/en-gb/category/tcg-cards"
+  },
+  {
+    "url": "https://holo.bg",
+    "name": "holo.bg",
+    "searchUrl": "https://holo.bg/search?q={query}"
+  },
+  {
+    "url": "https://kamatogames.com",
+    "name": "kamatogames.com",
+    "searchUrl": "https://kamatogames.com/collections/pokemon"
+  },
+  {
+    "url": "https://www.raiigrachky.bg",
+    "name": "raiigrachky.bg",
+    "searchUrl": "https://www.raiigrachky.bg/busteri-blisteri-i-kutii-c23251"
+  },
+  {
+    "url": "https://itcg.bg",
+    "name": "itcg.bg",
+    "searchUrl": "https://itcg.bg/collections/pokemon-tcg"
   }
 ]
