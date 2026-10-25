@@ -118,6 +118,13 @@ export const OLD_PRICE_HTML = `
   <button>Добави в количката</button>
 </div></body></html>`;
 
+/** Title element with an attribute line appended (ozone.bg style). */
+export const TITLE_WITH_THEME_HTML = `
+<html><body><div class="product-box">
+  <a href="/p/pokemon-tin"><h3 class="product-name">Pokemon TCG: 30th Celebration Mini Tin, асортимент Тема: Pokémon</h3></a>
+  <span class="price">9,90 €</span>
+</div></body></html>`;
+
 export const BOT_WALL_HTML =
   '<html><head><META NAME="robots" CONTENT="noindex,nofollow"></head><body>Request unsuccessful. Incapsula incident ID: 9200002-412</body></html>';
 

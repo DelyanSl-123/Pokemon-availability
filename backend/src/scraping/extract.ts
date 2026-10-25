@@ -219,6 +219,8 @@ function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string
     title = '';
   }
   if (!title) title = link.text;
+  // Some shops append attribute lines to the name, e.g. "... Тема: Pokémon" (theme).
+  title = title.replace(/\s+(Тема|Серия|Марка|Бранд):.*$/i, '').trim() || title;
 
   const text = clean(card.text());
   const current = card.clone();

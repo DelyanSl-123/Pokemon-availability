@@ -12,6 +12,7 @@ import {
   OTHER_CARDS_HTML,
   SCRIPT_IN_TITLE_HTML,
   SHOPIFY_LIKE_HTML,
+  TITLE_WITH_THEME_HTML,
 } from '../fixtures/html';
 
 describe('parseNumber', () => {
@@ -181,6 +182,11 @@ describe('extractProducts', () => {
       'https://shop.test/products/pokemon-tin',
     ]);
     expect(products.map((p) => p.title)).toEqual(['Pokémon Booster Bundle', 'Pokémon Collector Tin']);
+  });
+
+  it('trims appended attribute lines such as "Тема: ..." from titles', () => {
+    const [product] = extractProducts(TITLE_WITH_THEME_HTML, base, { filterPokemon: false });
+    expect(product.title).toBe('Pokemon TCG: 30th Celebration Mini Tin, асортимент');
   });
 
   it('returns an empty list for a page without products', () => {
