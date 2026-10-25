@@ -1,6 +1,6 @@
 import type { DB } from '../db/connection';
-import { diagnose } from '../scraping/diagnose';
-import { extractProducts } from '../scraping/extract';
+import { detectBotWall, diagnose } from '../scraping/diagnose';
+import { extractAll } from '../scraping/extract';
 import { fetchPage as defaultFetchPage, type PageFetcher } from '../scraping/fetcher';
 import { finishRun, insertRun, listShops, upsertProduct } from '../db/repository';
 import { buildSearchUrl, listsOnlyPokemon } from '../shops/shop-urls';
@@ -12,6 +12,14 @@ export interface CheckDeps {
   now?: () => Date;
   /** Pause between shops so we stay polite. Tests pass 0. */
   delayMs?: number;
+}
+
+function safeDiagnose(html: string, url: string, titles?: string[]): string | undefined {
+  try {
+    return diagnose(html, url, { titles }).slice(0, 3500);
+  } catch {
+    return undefined; // diagnostics are best-effort
+  }
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -60,19 +68,25 @@ export async function runCheck(
       continue;
     }
 
+    const wall = detectBotWall(outcome.html);
+    if (wall) {
+      results.push({
+        ...base,
+        status: 'blocked',
+        message: `Blocked by bot protection (${wall}); a plain HTTP request cannot open this page`,
+        diagnostics: safeDiagnose(outcome.html, outcome.url),
+      });
+      continue;
+    }
+
     try {
-      try {
-        base.diagnostics = diagnose(outcome.html, outcome.url).slice(0, 3000);
-      } catch {
-        /* diagnostics are best-effort */
-      }
-      const extracted = extractProducts(outcome.html, outcome.url, {
+      const { scanned, matched } = extractAll(outcome.html, outcome.url, {
         filterPokemon: !listsOnlyPokemon(shop.searchUrl),
       });
       const seenAt = now().toISOString();
 
       const save = db.transaction(() => {
-        for (const p of extracted) {
+        for (const p of matched) {
           const { isNew, backInStock } = upsertProduct(db, shop.id, p, seenAt);
           products.push({ ...p, shopId: shop.id, shopName: shop.name, isNew, backInStock });
           if (isNew) base.newCount++;
@@ -81,9 +95,14 @@ export async function runCheck(
       });
       save();
 
-      base.found = extracted.length;
-      if (extracted.length === 0) {
-        base.message = 'Page loaded but no Pokémon TCG products were recognised';
+      base.found = matched.length;
+      base.scanned = scanned.length;
+      base.diagnostics = safeDiagnose(outcome.html, outcome.url, scanned.map((p) => p.title));
+      if (matched.length === 0) {
+        base.message =
+          scanned.length > 0
+            ? `${scanned.length} products were on the page, none looked like Pokémon TCG`
+            : 'Page loaded but no products were recognised';
       }
       results.push(base);
     } catch (e) {

@@ -88,3 +88,42 @@ export const DIV_SOUP_HTML = `
     </div>
   </div>
 </body></html>`;
+
+/** Shopify-style grid: tracking params in links, sale price pair, and a cart drawer with a price. */
+export const SHOPIFY_LIKE_HTML = `
+<html><body>
+  <cart-drawer class="drawer"><div class="drawer__inner">
+    <span class="price">0,00 €</span><a href="/collections/all">Продължи пазаруването</a>
+  </div></cart-drawer>
+  <ul class="grid">
+    <li class="grid__item"><div class="card-wrapper"><div class="card">
+      <a href="/products/pokemon-etb?_pos=1&amp;_sid=abc&amp;_ss=r" class="full-unstyled-link">Pokémon Elite Trainer Box</a>
+      <div class="price"><div class="price__sale"><s class="price-item--regular">59,90 €</s><span class="price-item--sale">49,90 €</span></div></div>
+    </div></div></li>
+    <li class="grid__item"><div class="card-wrapper"><div class="card">
+      <a href="/products/pokemon-tin?_pos=2&amp;_sid=abc&amp;_ss=r" class="full-unstyled-link">Pokémon Collector Tin</a>
+      <span class="badge badge--sold-out">Sold out</span>
+      <div class="price"><span class="price-item">29,90 €</span></div>
+    </div></div></li>
+  </ul>
+</body></html>`;
+
+/** Ozone-style card: the crossed-out supplier price comes before the real selling price. */
+export const OLD_PRICE_HTML = `
+<html><body><div class="product-box">
+  <a href="/pokemon-booster"><img src="/i.jpg" alt=""></a>
+  <a href="/pokemon-booster" class="title">Pokémon Booster Pack</a>
+  <p class="old-price"><span class="price-label">ПЦД:</span> <span class="price">39,90&nbsp;€</span></p>
+  <p class="special-price"><span class="price">29,90&nbsp;€</span></p>
+  <button>Добави в количката</button>
+</div></body></html>`;
+
+export const BOT_WALL_HTML =
+  '<html><head><META NAME="robots" CONTENT="noindex,nofollow"></head><body>Request unsuccessful. Incapsula incident ID: 9200002-412</body></html>';
+
+/** JSON-LD with products that are not Pokémon (a mixed trading-card category). */
+export const OTHER_CARDS_HTML = `
+<html><head><script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Product","name":"Magic: The Gathering Booster","url":"/p/mtg",
+ "offers":{"@type":"Offer","price":"6.5","priceCurrency":"EUR","availability":"https://schema.org/InStock"}}
+</script></head><body></body></html>`;

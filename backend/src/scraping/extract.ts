@@ -73,6 +73,8 @@ function detectStock(text: string): boolean | null {
 
 const clean = (s: string | undefined | null): string => (s ?? '').replace(/\s+/g, ' ').trim();
 
+const TRACKING_PARAM_RE = /^(_pos|_sid|_ss|_psq|_fid|_ga|utm_.+|fbclid|gclid|srsltid|ref|ref_src)$/i;
+
 function resolveUrl(href: string | undefined, baseUrl: string): string | null {
   if (!href) return null;
   const trimmed = href.trim();
@@ -81,6 +83,10 @@ function resolveUrl(href: string | undefined, baseUrl: string): string | null {
     const u = new URL(trimmed, baseUrl);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     u.hash = '';
+    // Tracking parameters change on every visit and would make known products look new.
+    for (const key of [...u.searchParams.keys()]) {
+      if (TRACKING_PARAM_RE.test(key)) u.searchParams.delete(key);
+    }
     return u.toString();
   } catch {
     return null;
@@ -148,7 +154,25 @@ const BAD_HREF_RE = /^(javascript|mailto|tel):|\/(cart|checkout|wishlist|compare
 /** Link texts that are buttons, not product names. */
 const BAD_LINK_TEXT_RE = /^(добави|купи|buy|add to|в количк|сравни|compare|wishlist|любим|виж|view|details|quick|подробн)/i;
 /** Page chrome whose prices (e.g. the mini-cart total) are not products. */
-const CHROME_SELECTOR = 'header, nav, footer, [class*="mini-cart" i], [class*="minicart" i], [id*="minicart" i]';
+const CHROME_SELECTOR = [
+  'header',
+  'nav',
+  'footer',
+  '[role="dialog"]',
+  '[class*="mini-cart" i]',
+  '[class*="minicart" i]',
+  '[id*="minicart" i]',
+  '[class*="drawer" i]',
+  '[id*="drawer" i]',
+  '[class*="facets" i]',
+  '[class*="filter" i]',
+].join(', ');
+
+/** Crossed-out / list prices that must not be reported as the selling price. */
+const OLD_PRICE_SELECTOR = 's, del, strike, [class*="old-price" i], [class*="oldprice" i], [class*="compare-at" i], [class*="was-price" i]';
+/** Markers in class names that say a product cannot be bought. */
+const OUT_OF_STOCK_CLASS_SELECTOR =
+  '[class*="sold-out" i], [class*="soldout" i], [class*="out-of-stock" i], [class*="outofstock" i], [class*="unavailable" i]';
 
 const TITLE_SELECTORS = ['[itemprop="name"]', '.product-name', '.product-title', '.product-item-link', 'h2', 'h3', 'h4'];
 
@@ -178,8 +202,13 @@ function describeCard($: CheerioAPI, card: Cheerio<AnyNode>, baseUrl: string): E
   if (!title) title = link.text;
 
   const text = clean(card.text());
-  const price = findPrice(text);
-  const inStock = detectStock(text);
+  const current = card.clone();
+  current.find(OLD_PRICE_SELECTOR).remove();
+  const price = findPrice(clean(current.text())) ?? findPrice(text);
+  let inStock = detectStock(text);
+  if (card.find(OUT_OF_STOCK_CLASS_SELECTOR).length > 0 || /sold-?out|out-of-stock/i.test(card.attr('data-status') ?? '')) {
+    inStock = false;
+  }
   // Skip containers that have neither a price nor a stock marker nor Pokémon in the name.
   if (!price && inStock === null && !POKEMON_RE.test(title)) return null;
 
@@ -226,9 +255,22 @@ function fromCards($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
 
 /* ---------- Strategy 3: start from the prices and climb to the product card ---------- */
 
+/** Distinct product-ish link targets (without query string) inside a node. */
+function hrefsIn($: CheerioAPI, node: AnyNode): Set<string> {
+  const hrefs = new Set<string>();
+  const el = $(node);
+  const add = (href: string | undefined) => {
+    if (!href || href.startsWith('#') || BAD_HREF_RE.test(href)) return;
+    hrefs.add(href.split('?')[0].split('#')[0]);
+  };
+  if ('name' in node && node.name === 'a') add(el.attr('href'));
+  el.find('a[href]').each((_, a) => add($(a).attr('href')));
+  return hrefs;
+}
+
 /**
  * Works on any markup: every element that is only a price is a seed; the card is the largest
- * ancestor that still holds a single price block (old + new price share one parent).
+ * ancestor that still belongs to a single product (one product link, one price block).
  */
 export function findPriceCards($: CheerioAPI): AnyNode[] {
   const seeds: AnyNode[] = [];
@@ -248,14 +290,17 @@ export function findPriceCards($: CheerioAPI): AnyNode[] {
   const cards = new Set<AnyNode>();
   for (const el of usable) {
     let node: AnyNode = el;
-    for (let depth = 0; depth < 8; depth++) {
+    let best: AnyNode | null = null;
+    for (let depth = 0; depth < 10; depth++) {
       const parent = node.parent;
       if (!parent || !('name' in parent) || parent.name === 'body' || parent.name === 'html') break;
-      const priceBlocks = new Set(usable.filter((d) => $.contains(parent, d)).map((d) => d.parent));
-      if (priceBlocks.size > 1) break;
+      const links = hrefsIn($, parent).size;
+      const priceBlocks = new Set(usable.filter((d) => $.contains(parent, d)).map((d) => d.parent)).size;
+      if (links >= 3 || (links === 2 && priceBlocks > 1)) break;
       node = parent;
+      if (links >= 1) best = parent;
     }
-    if (node !== el) cards.add(node);
+    if (best) cards.add(best);
   }
   return [...cards];
 }
@@ -292,6 +337,15 @@ export function extractProducts(
   baseUrl: string,
   opts: { filterPokemon?: boolean } = {},
 ): ExtractedProduct[] {
+  return extractAll(html, baseUrl, opts).matched;
+}
+
+/** Like extractProducts, but also returns everything that was parsed before the keyword filter. */
+export function extractAll(
+  html: string,
+  baseUrl: string,
+  opts: { filterPokemon?: boolean } = {},
+): { scanned: ExtractedProduct[]; matched: ExtractedProduct[] } {
   const $ = cheerio.load(html);
 
   const merged = new Map<string, ExtractedProduct>();
@@ -312,7 +366,7 @@ export function extractProducts(
   if (merged.size === 0) fromPriceAnchors($, baseUrl).forEach(add);
   if (merged.size === 0 && opts.filterPokemon !== false) fromAnchors($, baseUrl).forEach(add);
 
-  const all = [...merged.values()];
+  const scanned = [...merged.values()];
   // On a Pokémon TCG category page every product counts, so no keyword filter is applied.
-  return opts.filterPokemon === false ? all : all.filter(isPokemonTcg);
+  return { scanned, matched: opts.filterPokemon === false ? scanned : scanned.filter(isPokemonTcg) };
 }

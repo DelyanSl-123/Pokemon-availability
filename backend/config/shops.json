@@ -12,7 +12,8 @@
   {
     "url": "https://www.pokemoncenter.com",
     "name": "Pokemon Center UK",
-    "searchUrl": "https://www.pokemoncenter.com/en-gb/category/tcg-cards"
+    "searchUrl": "https://www.pokemoncenter.com/en-gb/category/tcg-cards",
+    "enabled": false
   },
   {
     "url": "https://holo.bg",

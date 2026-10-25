@@ -3,21 +3,30 @@ import { CARD_SELECTORS, findPriceCards, fromJsonLd } from './extract';
 
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
 
-/** Words that usually mean a bot wall or a page that needs JavaScript. */
+/** Bot-protection pages are short; real shop pages are far bigger. */
+const WALL_MAX_BYTES = 20_000;
+
 const BLOCK_MARKERS: [string, RegExp][] = [
-  ['captcha', /captcha/i],
-  ['cloudflare', /cf-chl|cloudflare|just a moment/i],
-  ['access-denied', /access denied|forbidden|request blocked/i],
-  ['akamai', /akamai|_abck/i],
-  ['needs-js', /enable javascript|javascript is required|you need to enable javascript/i],
+  ['Incapsula', /incapsula incident|_incapsula_/i],
+  ['Cloudflare', /cf-chl|just a moment\.\.\.|attention required! \| cloudflare/i],
+  ['Access Denied', /access denied|request blocked|request unsuccessful/i],
+  ['CAPTCHA', /captcha/i],
+  ['needs JavaScript', /enable javascript|javascript is required/i],
 ];
+
+/** Name of the bot protection when the page is a challenge/block page instead of a shop page. */
+export function detectBotWall(html: string): string | null {
+  if (html.length > WALL_MAX_BYTES) return null;
+  const hit = BLOCK_MARKERS.find(([, re]) => re.test(html));
+  return hit ? hit[0] : null;
+}
 
 /**
  * One-line, human-readable explanation of what a fetched page contains. It is printed in the
  * workflow run so that "0 found" can be traced to a cause: bot wall, JavaScript-only page,
  * or markup the extractor does not recognise (the sample card shows the real structure).
  */
-export function diagnose(html: string, url: string): string {
+export function diagnose(html: string, url: string, extra: { titles?: string[] } = {}): string {
   const $ = cheerio.load(html);
   const parts: string[] = [];
 
@@ -44,8 +53,12 @@ export function diagnose(html: string, url: string): string {
   const priceCards = findPriceCards($);
   parts.push(`priceCards=${priceCards.length}`);
 
-  const flags = BLOCK_MARKERS.filter(([, re]) => re.test(html.slice(0, 200_000))).map(([name]) => name);
-  if (flags.length) parts.push(`possibleBlock=[${flags.join(',')}]`);
+  const wall = detectBotWall(html);
+  if (wall) parts.push(`botWall=${wall}`);
+  if (extra.titles) {
+    parts.push(`parsed=${extra.titles.length}`);
+    parts.push(`titles=[${extra.titles.slice(0, 12).map((t) => t.slice(0, 60)).join(' ; ')}]`);
+  }
 
   parts.push(`bodyText="${clean($('body').text()).slice(0, 160)}"`);
 

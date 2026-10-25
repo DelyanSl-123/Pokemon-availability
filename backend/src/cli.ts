@@ -79,7 +79,7 @@ async function main() {
   const escapeProp = (s: string) => escapeData(s).replace(/:/g, '%3A').replace(/,/g, '%2C');
   for (const s of summary.shops) {
     if (s.diagnostics) {
-      console.log(`::notice title=${escapeProp(`${s.shopName}: ${s.found} found`)}::${escapeData(s.diagnostics)}`);
+      console.log(`::notice title=${escapeProp(`${s.shopName}: ${s.found} found of ${s.scanned ?? 0} parsed`)}::${escapeData(s.diagnostics)}`);
     }
   }
 

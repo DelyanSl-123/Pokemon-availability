@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { extractProducts, findPrice, isPokemonTcg, parseNumber } from '../../src/scraping/extract';
-import { ANCHORS_ONLY_HTML, CARDS_HTML, DIV_SOUP_HTML, JSON_LD_HTML, MANY_LINKS_HTML } from '../fixtures/html';
+import { extractAll, extractProducts, findPrice, isPokemonTcg, parseNumber } from '../../src/scraping/extract';
+import {
+  ANCHORS_ONLY_HTML,
+  CARDS_HTML,
+  DIV_SOUP_HTML,
+  JSON_LD_HTML,
+  MANY_LINKS_HTML,
+  OLD_PRICE_HTML,
+  OTHER_CARDS_HTML,
+  SHOPIFY_LIKE_HTML,
+} from '../fixtures/html';
 
 describe('parseNumber', () => {
   it.each([
@@ -115,6 +124,36 @@ describe('extractProducts', () => {
   it('ignores the mini-cart total in the page header', () => {
     const products = extractProducts(DIV_SOUP_HTML, base, { filterPokemon: false });
     expect(products.every((p) => !/количка/i.test(p.title))).toBe(true);
+  });
+
+  it('removes tracking parameters so products keep the same link on every visit', () => {
+    const products = extractProducts(SHOPIFY_LIKE_HTML, base, { filterPokemon: false });
+    expect(products.map((p) => p.url)).toEqual([
+      'https://shop.test/products/pokemon-etb',
+      'https://shop.test/products/pokemon-tin',
+    ]);
+  });
+
+  it('uses the sale price and ignores prices in a cart drawer', () => {
+    const products = extractProducts(SHOPIFY_LIKE_HTML, base, { filterPokemon: false });
+    expect(products).toHaveLength(2);
+    expect(products[0]).toMatchObject({ title: 'Pokémon Elite Trainer Box', price: 49.9, currency: 'EUR' });
+  });
+
+  it('marks products with a sold-out badge as out of stock', () => {
+    const products = extractProducts(SHOPIFY_LIKE_HTML, base, { filterPokemon: false });
+    expect(products[1]).toMatchObject({ title: 'Pokémon Collector Tin', inStock: false, price: 29.9 });
+  });
+
+  it('reports the selling price, not the crossed-out list price', () => {
+    const [product] = extractProducts(OLD_PRICE_HTML, base, { filterPokemon: false });
+    expect(product).toMatchObject({ title: 'Pokémon Booster Pack', price: 29.9, currency: 'EUR', inStock: true });
+  });
+
+  it('tells how many products were parsed before the Pokémon filter', () => {
+    const { scanned, matched } = extractAll(OTHER_CARDS_HTML, base);
+    expect(scanned).toHaveLength(1);
+    expect(matched).toHaveLength(0);
   });
 
   it('returns an empty list for a page without products', () => {

@@ -92,8 +92,11 @@ export function buildDigest(summary: RunSummary): Digest {
       continue;
     }
     if (items.length === 0) {
-      textParts.push('No Pokémon TCG products found.', '');
-      htmlParts.push('<p>No Pokémon TCG products found.</p>');
+      const none = shop.scanned
+        ? `No Pokémon TCG products found (${shop.scanned} other products were on the page).`
+        : 'No Pokémon TCG products found.';
+      textParts.push(none, '');
+      htmlParts.push(`<p>${esc(none)}</p>`);
       continue;
     }
 

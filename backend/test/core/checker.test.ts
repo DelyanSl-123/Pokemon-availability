@@ -3,7 +3,7 @@ import { runCheck } from '../../src/core/checker';
 import { openDb } from '../../src/db/connection';
 import type { PageFetcher } from '../../src/scraping/fetcher';
 import { createShop, listProducts, listRuns, updateShop } from '../../src/db/repository';
-import { CARDS_HTML, CARDS_HTML_RESTOCKED } from '../fixtures/html';
+import { BOT_WALL_HTML, CARDS_HTML, CARDS_HTML_RESTOCKED, OTHER_CARDS_HTML } from '../fixtures/html';
 
 const now = () => new Date('2026-10-21T07:00:00Z');
 
@@ -78,6 +78,20 @@ describe('runCheck', () => {
     const summary = await runCheck(deps, { query: 'pokemon tcg', source: 'manual' });
     expect(summary.shops.map((s) => s.status)).toEqual(['ok', 'error']);
     expect(summary.products).toHaveLength(2);
+  });
+
+  it('reports a bot-protection page as blocked instead of "0 found"', async () => {
+    const { deps } = setup(serve(BOT_WALL_HTML));
+    const summary = await runCheck(deps, { query: 'pokemon tcg', source: 'manual' });
+    expect(summary.shops[0].status).toBe('blocked');
+    expect(summary.shops[0].message).toContain('Incapsula');
+  });
+
+  it('explains when products were on the page but none were Pokémon TCG', async () => {
+    const { deps } = setup(serve(OTHER_CARDS_HTML));
+    const summary = await runCheck(deps, { query: 'pokemon tcg', source: 'manual' });
+    expect(summary.shops[0]).toMatchObject({ status: 'ok', found: 0, scanned: 1 });
+    expect(summary.shops[0].message).toContain('1 products were on the page');
   });
 
   it('skips disabled shops', async () => {
