@@ -109,8 +109,19 @@ function typeIncludes(node: Record<string, unknown>, type: string): boolean {
   return Array.isArray(t) ? t.includes(type) : t === type;
 }
 
+/** origin + path without trailing slash, to compare "is this the page we are on". */
+function pageKey(url: string): string {
+  try {
+    const u = new URL(url);
+    return (u.origin + u.pathname).replace(/\/+$/, '').toLowerCase();
+  } catch {
+    return url;
+  }
+}
+
 export function fromJsonLd($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
   const out: ExtractedProduct[] = [];
+  const thisPage = pageKey(baseUrl);
   $('script[type="application/ld+json"]').each((_, el) => {
     let data: unknown;
     try {
@@ -124,7 +135,8 @@ export function fromJsonLd($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
       const offer = (Array.isArray(offersRaw) ? offersRaw[0] : offersRaw) as Record<string, unknown> | undefined;
       const url = resolveUrl(String(node.url ?? offer?.url ?? ''), baseUrl);
       const title = clean(String(node.name ?? ''));
-      if (!url || !title) return;
+      // Some shops give every product the listing page as its url; those collapse into one item.
+      if (!url || !title || pageKey(url) === thisPage) return;
 
       const priceRaw = offer?.price ?? offer?.lowPrice;
       const price = priceRaw !== undefined ? parseNumber(String(priceRaw)) : null;
@@ -158,14 +170,17 @@ const CHROME_SELECTOR = [
   'header',
   'nav',
   'footer',
+  'cart-drawer',
+  '.drawer',
+  '#CartDrawer',
   '[role="dialog"]',
   '[class*="mini-cart" i]',
   '[class*="minicart" i]',
   '[id*="minicart" i]',
-  '[class*="drawer" i]',
-  '[id*="drawer" i]',
-  '[class*="facets" i]',
-  '[class*="filter" i]',
+  'facets-form-component',
+  '.facets',
+  '.facets-wrapper',
+  '.facets__form',
 ].join(', ');
 
 /** Crossed-out / list prices that must not be reported as the selling price. */
@@ -177,7 +192,11 @@ const OUT_OF_STOCK_CLASS_SELECTOR =
 const TITLE_SELECTORS = ['[itemprop="name"]', '.product-name', '.product-title', '.product-item-link', 'h2', 'h3', 'h4'];
 
 /** Turns one product container into a product, or null when it does not look like one. */
-function describeCard($: CheerioAPI, card: Cheerio<AnyNode>, baseUrl: string): ExtractedProduct | null {
+function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string): ExtractedProduct | null {
+  // Work on a copy without scripts: shops embed JSON/JS inside cards, which would end up in titles.
+  const card = original.clone();
+  card.find('script, style, noscript, template').remove();
+
   const candidates: { url: string; text: string }[] = [];
   card.find('a[href]').each((_, a) => {
     const el = $(a);
@@ -268,11 +287,8 @@ function hrefsIn($: CheerioAPI, node: AnyNode): Set<string> {
   return hrefs;
 }
 
-/**
- * Works on any markup: every element that is only a price is a seed; the card is the largest
- * ancestor that still belongs to a single product (one product link, one price block).
- */
-export function findPriceCards($: CheerioAPI): AnyNode[] {
+/** Elements that contain nothing but a price, split into all of them and those outside page chrome. */
+export function findPriceSeeds($: CheerioAPI): { all: AnyNode[]; usable: AnyNode[] } {
   const seeds: AnyNode[] = [];
   $('body *')
     .not('script, style, noscript, svg, svg *')
@@ -284,8 +300,20 @@ export function findPriceCards($: CheerioAPI): AnyNode[] {
     });
 
   const seedSet = new Set<AnyNode>(seeds);
-  const deepest = seeds.filter((el) => !$(el).find('*').toArray().some((d) => seedSet.has(d)));
-  const usable = deepest.filter((el) => $(el).closest(CHROME_SELECTOR).length === 0);
+  const all = seeds.filter((el) => !$(el).find('*').toArray().some((d) => seedSet.has(d)));
+  const usable = all.filter((el) => $(el).closest(CHROME_SELECTOR).length === 0);
+  return { all, usable };
+}
+
+/**
+ * Works on any markup: every element that is only a price is a seed; the card is the largest
+ * ancestor that still belongs to a single product (it stops where a second price block and a
+ * second product link show up).
+ */
+export function findPriceCards($: CheerioAPI): AnyNode[] {
+  const { usable } = findPriceSeeds($);
+  // Old/new/hidden price variants of one card sit side by side below the same grandparent.
+  const blockOf = (el: AnyNode): AnyNode | null => el.parent?.parent ?? el.parent;
 
   const cards = new Set<AnyNode>();
   for (const el of usable) {
@@ -295,8 +323,8 @@ export function findPriceCards($: CheerioAPI): AnyNode[] {
       const parent = node.parent;
       if (!parent || !('name' in parent) || parent.name === 'body' || parent.name === 'html') break;
       const links = hrefsIn($, parent).size;
-      const priceBlocks = new Set(usable.filter((d) => $.contains(parent, d)).map((d) => d.parent)).size;
-      if (links >= 3 || (links === 2 && priceBlocks > 1)) break;
+      const priceBlocks = new Set(usable.filter((d) => $.contains(parent, d)).map(blockOf)).size;
+      if (priceBlocks > 1 && links >= 2) break;
       node = parent;
       if (links >= 1) best = parent;
     }
@@ -363,7 +391,15 @@ export function extractAll(
 
   fromJsonLd($, baseUrl).forEach(add);
   fromCards($, baseUrl).forEach(add);
-  if (merged.size === 0) fromPriceAnchors($, baseUrl).forEach(add);
+
+  const priceProducts = fromPriceAnchors($, baseUrl);
+  if (merged.size === 0) {
+    priceProducts.forEach(add);
+  } else if (priceProducts.length >= 6 && merged.size < priceProducts.length / 2) {
+    // The earlier strategies saw only part of the page: add what they missed (matched by title).
+    const known = new Set([...merged.values()].map((p) => p.title.toLowerCase()));
+    priceProducts.filter((p) => !known.has(p.title.toLowerCase())).forEach(add);
+  }
   if (merged.size === 0 && opts.filterPokemon !== false) fromAnchors($, baseUrl).forEach(add);
 
   const scanned = [...merged.values()];

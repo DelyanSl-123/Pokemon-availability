@@ -5,9 +5,12 @@ import {
   CARDS_HTML,
   DIV_SOUP_HTML,
   JSON_LD_HTML,
+  JSON_LD_SAME_URL_HTML,
   MANY_LINKS_HTML,
+  MULTI_LINK_PRICE_BLOCKS_HTML,
   OLD_PRICE_HTML,
   OTHER_CARDS_HTML,
+  SCRIPT_IN_TITLE_HTML,
   SHOPIFY_LIKE_HTML,
 } from '../fixtures/html';
 
@@ -154,6 +157,30 @@ describe('extractProducts', () => {
     const { scanned, matched } = extractAll(OTHER_CARDS_HTML, base);
     expect(scanned).toHaveLength(1);
     expect(matched).toHaveLength(0);
+  });
+
+  it('ignores JSON-LD products that only point at the listing page and reads the markup instead', () => {
+    const products = extractProducts(JSON_LD_SAME_URL_HTML, base);
+    expect(products.map((p) => p.url)).toEqual([
+      'https://shop.test/x/booster-a',
+      'https://shop.test/x/booster-b',
+      'https://shop.test/x/booster-c',
+    ]);
+  });
+
+  it('never puts inline script text into a product title', () => {
+    const [product] = extractProducts(SCRIPT_IN_TITLE_HTML, base, { filterPokemon: false });
+    expect(product.title).toBe('Pokémon Booster Pack');
+    expect(product.url).toBe('https://shop.test/p/pokemon-booster');
+  });
+
+  it('finds cards that have several links and separate sale / regular price blocks', () => {
+    const products = extractProducts(MULTI_LINK_PRICE_BLOCKS_HTML, base, { filterPokemon: false });
+    expect(products.map((p) => p.url)).toEqual([
+      'https://shop.test/products/pokemon-bundle',
+      'https://shop.test/products/pokemon-tin',
+    ]);
+    expect(products.map((p) => p.title)).toEqual(['Pokémon Booster Bundle', 'Pokémon Collector Tin']);
   });
 
   it('returns an empty list for a page without products', () => {

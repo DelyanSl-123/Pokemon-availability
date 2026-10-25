@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { CARD_SELECTORS, findPriceCards, fromJsonLd } from './extract';
+import { CARD_SELECTORS, findPriceCards, findPriceSeeds, fromJsonLd } from './extract';
 
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
 
@@ -51,7 +51,17 @@ export function diagnose(html: string, url: string, extra: { titles?: string[] }
   parts.push(`links=${anchors}`, `pokemonLinks=${pokemonAnchors}`);
 
   const priceCards = findPriceCards($);
-  parts.push(`priceCards=${priceCards.length}`);
+  const seeds = findPriceSeeds($);
+  parts.push(`priceSeeds=${seeds.all.length}`, `inPageChrome=${seeds.all.length - seeds.usable.length}`, `priceCards=${priceCards.length}`);
+
+  if (seeds.all.length > 0 && priceCards.length === 0) {
+    // Show what swallowed the prices: the element that excluded the first seed, or the seed's surroundings.
+    const first = seeds.all[0];
+    const chrome = $(first).closest('header, nav, footer, cart-drawer, .drawer, #CartDrawer, [role="dialog"], [class*="minicart" i], [class*="mini-cart" i], facets-form-component, .facets, .facets-wrapper, .facets__form');
+    const openingTag = (html: string) => (clean(html).match(/^<[^>]+>/) ?? [''])[0];
+    if (chrome.length) parts.push(`firstPriceExcludedBy=${openingTag($.html(chrome.first()))}`);
+    parts.push(`firstPriceContext=${clean($.html($(first).parent().parent().parent())).slice(0, 700)}`);
+  }
 
   const wall = detectBotWall(html);
   if (wall) parts.push(`botWall=${wall}`);

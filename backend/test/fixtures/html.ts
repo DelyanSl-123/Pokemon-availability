@@ -127,3 +127,42 @@ export const OTHER_CARDS_HTML = `
 {"@context":"https://schema.org","@type":"Product","name":"Magic: The Gathering Booster","url":"/p/mtg",
  "offers":{"@type":"Offer","price":"6.5","priceCurrency":"EUR","availability":"https://schema.org/InStock"}}
 </script></head><body></body></html>`;
+
+/** Every JSON-LD product points at the listing page itself; the real products are only in the markup. */
+export const JSON_LD_SAME_URL_HTML = `
+<html><head><script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"Product","name":"Pokémon TCG Booster A","url":"https://shop.test/search"},
+ {"@type":"Product","name":"Pokémon TCG Booster B","url":"https://shop.test/search"},
+ {"@type":"Product","name":"Pokémon TCG Booster C","url":"https://shop.test/search"}]}
+</script></head><body>
+  <div class="grid">
+    <div class="c"><a href="/x/booster-a">Pokémon TCG Booster A</a><div><b>5,90 €</b></div></div>
+    <div class="c"><a href="/x/booster-b">Pokémon TCG Booster B</a><div><b>6,90 €</b></div></div>
+    <div class="c"><a href="/x/booster-c">Pokémon TCG Booster C</a><div><b>7,90 €</b></div></div>
+  </div>
+</body></html>`;
+
+/** A card whose title element contains an inline script (as seen on ozone.bg). */
+export const SCRIPT_IN_TITLE_HTML = `
+<html><body><div class="product-box">
+  <h3 class="product-name"><script>var productData_x = { ids:'BGPM0000754N', value: 1 };</script><a href="/p/pokemon-booster">Pokémon Booster Pack</a></h3>
+  <span class="price">12,90 €</span>
+</div></body></html>`;
+
+/** Cards with several links each (product, vendor, collection) and sale/regular price blocks. */
+export const MULTI_LINK_PRICE_BLOCKS_HTML = `
+<html><body><ul class="grid">
+  <li><div class="card">
+    <a href="/products/pokemon-bundle">Pokémon Booster Bundle</a>
+    <a href="/collections/vendors?q=Pokemon">Pokemon</a>
+    <a href="/collections/booster">Booster</a>
+    <div class="price"><div class="price__regular"><span>10,00 €</span></div><div class="price__sale"><s>10,00 €</s><span>8,00 €</span></div></div>
+  </div></li>
+  <li><div class="card">
+    <a href="/products/pokemon-tin">Pokémon Collector Tin</a>
+    <a href="/collections/vendors?q=Pokemon">Pokemon</a>
+    <a href="/collections/tin">Tin</a>
+    <div class="price"><div class="price__regular"><span>20,00 €</span></div></div>
+  </div></li>
+</ul></body></html>`;

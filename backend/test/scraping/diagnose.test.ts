@@ -14,6 +14,14 @@ describe('diagnose', () => {
     expect(diagnose(MANY_LINKS_HTML, 'https://shop.test/')).toContain('.product-item=2');
   });
 
+  it('explains when prices exist but all of them sit in page chrome', () => {
+    const html = '<html><body><cart-drawer class="drawer"><div><span>5,00 €</span></div></cart-drawer></body></html>';
+    const text = diagnose(html, 'https://shop.test/');
+    expect(text).toContain('priceSeeds=1');
+    expect(text).toContain('inPageChrome=1');
+    expect(text).toContain('firstPriceExcludedBy=<cart-drawer class="drawer">');
+  });
+
   it('lists the parsed product titles', () => {
     const text = diagnose(CARDS_HTML, 'https://shop.test/', { titles: ['A', 'B'] });
     expect(text).toContain('parsed=2');
