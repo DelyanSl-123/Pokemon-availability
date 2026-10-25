@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: |
+          if ! npx tsc --noEmit -p tsconfig.test.json --pretty false > /tmp/tsc.txt 2>&1; then
+            # show the first errors as annotations on the run page
+            head -n 10 /tmp/tsc.txt | while IFS= read -r line; do echo "::error title=TypeScript::$line"; done
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: npx vitest run --reporter=default --reporter=github-actions
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Typecheck and build
+        run: |
+          if ! npm run build > /tmp/build.txt 2>&1; then
+            head -n 10 /tmp/build.txt | while IFS= read -r line; do echo "::error title=Frontend build::$line"; done
+            exit 1
+          fi

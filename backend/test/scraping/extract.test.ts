@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { extractProducts, findPrice, isPokemonTcg, parseNumber } from '../../src/scraping/extract';
-import { ANCHORS_ONLY_HTML, CARDS_HTML, JSON_LD_HTML } from '../fixtures/html';
+import { ANCHORS_ONLY_HTML, CARDS_HTML, DIV_SOUP_HTML, JSON_LD_HTML, MANY_LINKS_HTML } from '../fixtures/html';
 
 describe('parseNumber', () => {
   it.each([
@@ -90,6 +90,31 @@ describe('extractProducts', () => {
       'LEGO City Fire Station',
       'Pokemon TCG Elite Trainer Box',
     ]);
+  });
+
+  it('reads cards that contain many links (photo, name, brand, wishlist, compare)', () => {
+    const products = extractProducts(MANY_LINKS_HTML, base, { filterPokemon: false });
+    expect(products).toHaveLength(2);
+    expect(products[0]).toMatchObject({
+      title: 'Pokémon TCG Booster Display',
+      url: 'https://shop.test/p/pokemon-booster-display',
+      price: 45.5,
+      currency: 'BGN',
+      inStock: true,
+    });
+    expect(products[1]).toMatchObject({ url: 'https://shop.test/p/pokemon-tin', price: 29.9, inStock: false });
+  });
+
+  it('finds products on pages without any known class names by starting from the prices', () => {
+    const products = extractProducts(DIV_SOUP_HTML, base, { filterPokemon: false });
+    expect(products.map((p) => p.url)).toEqual(['https://shop.test/x/etb-prismatic', 'https://shop.test/x/booster-bundle']);
+    expect(products[0].title).toBe('Elite Trainer Box Prismatic Evolutions');
+    expect(products[1].price).toBe(39.9);
+  });
+
+  it('ignores the mini-cart total in the page header', () => {
+    const products = extractProducts(DIV_SOUP_HTML, base, { filterPokemon: false });
+    expect(products.every((p) => !/количка/i.test(p.title))).toBe(true);
   });
 
   it('returns an empty list for a page without products', () => {

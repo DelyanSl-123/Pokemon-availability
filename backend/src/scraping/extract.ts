@@ -1,4 +1,6 @@
 import * as cheerio from 'cheerio';
+import type { Cheerio } from 'cheerio';
+import type { AnyNode } from 'domhandler';
 import type { ExtractedProduct } from '../types';
 
 /** Matches Latin and Cyrillic spellings (Pokémon / Pokemon / Покемон). */
@@ -13,7 +15,7 @@ const IN_STOCK_RE = /в наличност|добави в количката|к
 const PRICE_AFTER_RE = /(\d{1,3}(?:[  .]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(лв\.?|BGN|€|EUR)/i;
 const PRICE_BEFORE_RE = /(€|EUR|BGN)\s*(\d{1,3}(?:[  .]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i;
 
-type CheerioAPI = ReturnType<typeof cheerio.load>;
+export type CheerioAPI = ReturnType<typeof cheerio.load>;
 
 export function isPokemonTcg(p: Pick<ExtractedProduct, 'title' | 'url'>): boolean {
   let url = p.url;
@@ -101,7 +103,7 @@ function typeIncludes(node: Record<string, unknown>, type: string): boolean {
   return Array.isArray(t) ? t.includes(type) : t === type;
 }
 
-function fromJsonLd($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
+export function fromJsonLd($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
   const out: ExtractedProduct[] = [];
   $('script[type="application/ld+json"]').each((_, el) => {
     let data: unknown;
@@ -139,62 +141,135 @@ function fromJsonLd($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
   return out;
 }
 
-/* ---------- Strategy 2: product cards in the DOM ---------- */
+/* ---------- Shared helpers for the DOM strategies ---------- */
 
-const CARD_SELECTORS = [
+/** Links that are never the product page itself. */
+const BAD_HREF_RE = /^(javascript|mailto|tel):|\/(cart|checkout|wishlist|compare|login|account|customer|contact)(\/|\?|$)/i;
+/** Link texts that are buttons, not product names. */
+const BAD_LINK_TEXT_RE = /^(добави|купи|buy|add to|в количк|сравни|compare|wishlist|любим|виж|view|details|quick|подробн)/i;
+/** Page chrome whose prices (e.g. the mini-cart total) are not products. */
+const CHROME_SELECTOR = 'header, nav, footer, [class*="mini-cart" i], [class*="minicart" i], [id*="minicart" i]';
+
+const TITLE_SELECTORS = ['[itemprop="name"]', '.product-name', '.product-title', '.product-item-link', 'h2', 'h3', 'h4'];
+
+/** Turns one product container into a product, or null when it does not look like one. */
+function describeCard($: CheerioAPI, card: Cheerio<AnyNode>, baseUrl: string): ExtractedProduct | null {
+  const candidates: { url: string; text: string }[] = [];
+  card.find('a[href]').each((_, a) => {
+    const el = $(a);
+    const href = el.attr('href') ?? '';
+    const url = resolveUrl(href, baseUrl);
+    if (!url || BAD_HREF_RE.test(href)) return;
+    const text = clean(el.attr('title')) || clean(el.text()) || clean(el.find('img').first().attr('alt'));
+    if (text.length < 4 || BAD_LINK_TEXT_RE.test(text)) return;
+    candidates.push({ url, text: text.slice(0, 200) });
+  });
+  if (candidates.length === 0 || candidates.length > 25) return null;
+
+  // The product name link is normally the one with the longest text.
+  const link = candidates.reduce((best, c) => (c.text.length > best.text.length ? c : best));
+
+  let title = '';
+  for (const s of TITLE_SELECTORS) {
+    title = clean(card.find(s).first().text());
+    if (title.length >= 4) break;
+    title = '';
+  }
+  if (!title) title = link.text;
+
+  const text = clean(card.text());
+  const price = findPrice(text);
+  const inStock = detectStock(text);
+  // Skip containers that have neither a price nor a stock marker nor Pokémon in the name.
+  if (!price && inStock === null && !POKEMON_RE.test(title)) return null;
+
+  const img = card.find('img').first();
+  const imgSrc = img.attr('src') || img.attr('data-src') || img.attr('data-lazy-src');
+
+  return {
+    title,
+    url: link.url,
+    price: price?.price ?? null,
+    currency: price?.currency ?? null,
+    inStock,
+    imageUrl: resolveUrl(imgSrc, baseUrl),
+  };
+}
+
+/* ---------- Strategy 2: known product-card containers ---------- */
+
+export const CARD_SELECTORS = [
   '[itemtype*="schema.org/Product" i]',
   '.product-item',
   '.product-card',
   '.product-box',
+  '.product-tile',
+  '.product-miniature',
   '.product',
   'li.item',
   'article',
 ];
-const TITLE_SELECTORS = ['[itemprop="name"]', '.product-name', '.product-title', '.product-item-link', 'h2', 'h3', 'h4'];
 
 function fromCards($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
   const out: ExtractedProduct[] = [];
   for (const selector of CARD_SELECTORS) {
     $(selector).each((_, el) => {
+      if (!('name' in el) || el.name === 'body' || el.name === 'html') return;
       const card = $(el);
-
-      const hrefs = new Set<string>();
-      card.find('a[href]').each((__, a) => {
-        const url = resolveUrl($(a).attr('href'), baseUrl);
-        if (url) hrefs.add(url);
-      });
-      // A wrapper around a whole product list has many links; a single card has few.
-      if (hrefs.size === 0 || hrefs.size > 3) return;
-      const url = [...hrefs][0];
-
-      let title = '';
-      for (const s of TITLE_SELECTORS) {
-        title = clean(card.find(s).first().text());
-        if (title) break;
-      }
-      if (!title) title = clean(card.find('a[title]').first().attr('title'));
-      if (!title) title = clean(card.find('a[href]').first().text());
-      if (!title) return;
-
-      const text = clean(card.text());
-      const price = findPrice(text);
-      const img = card.find('img').first();
-      const imgSrc = img.attr('src') || img.attr('data-src') || img.attr('data-lazy-src');
-
-      out.push({
-        title,
-        url,
-        price: price?.price ?? null,
-        currency: price?.currency ?? null,
-        inStock: detectStock(text),
-        imageUrl: resolveUrl(imgSrc, baseUrl),
-      });
+      if (card.find(selector).length > 0) return; // a wrapper around other cards
+      const product = describeCard($, card, baseUrl);
+      if (product) out.push(product);
     });
   }
   return out;
 }
 
-/* ---------- Strategy 3: any link that mentions Pokémon ---------- */
+/* ---------- Strategy 3: start from the prices and climb to the product card ---------- */
+
+/**
+ * Works on any markup: every element that is only a price is a seed; the card is the largest
+ * ancestor that still holds a single price block (old + new price share one parent).
+ */
+export function findPriceCards($: CheerioAPI): AnyNode[] {
+  const seeds: AnyNode[] = [];
+  $('body *')
+    .not('script, style, noscript, svg, svg *')
+    .each((_, el) => {
+      const node = $(el);
+      if (node.children().length > 3) return;
+      const text = clean(node.text());
+      if (text && text.length <= 40 && findPrice(text)) seeds.push(el);
+    });
+
+  const seedSet = new Set<AnyNode>(seeds);
+  const deepest = seeds.filter((el) => !$(el).find('*').toArray().some((d) => seedSet.has(d)));
+  const usable = deepest.filter((el) => $(el).closest(CHROME_SELECTOR).length === 0);
+
+  const cards = new Set<AnyNode>();
+  for (const el of usable) {
+    let node: AnyNode = el;
+    for (let depth = 0; depth < 8; depth++) {
+      const parent = node.parent;
+      if (!parent || !('name' in parent) || parent.name === 'body' || parent.name === 'html') break;
+      const priceBlocks = new Set(usable.filter((d) => $.contains(parent, d)).map((d) => d.parent));
+      if (priceBlocks.size > 1) break;
+      node = parent;
+    }
+    if (node !== el) cards.add(node);
+  }
+  return [...cards];
+}
+
+function fromPriceAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
+  const out: ExtractedProduct[] = [];
+  for (const card of findPriceCards($)) {
+    const product = describeCard($, $(card), baseUrl);
+    if (product) out.push(product);
+  }
+  return out;
+}
+
+/* ---------- Strategy 4: any link that mentions Pokémon ---------- */
 
 function fromAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
   const out: ExtractedProduct[] = [];
@@ -208,7 +283,10 @@ function fromAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
   return out;
 }
 
-/** Extracts Pokémon TCG products from a shop search-results page. */
+/**
+ * Extracts products from a shop listing page. Strategies run from most to least reliable;
+ * later ones are only used when the earlier ones found nothing.
+ */
 export function extractProducts(
   html: string,
   baseUrl: string,
@@ -231,6 +309,7 @@ export function extractProducts(
 
   fromJsonLd($, baseUrl).forEach(add);
   fromCards($, baseUrl).forEach(add);
+  if (merged.size === 0) fromPriceAnchors($, baseUrl).forEach(add);
   if (merged.size === 0 && opts.filterPokemon !== false) fromAnchors($, baseUrl).forEach(add);
 
   const all = [...merged.values()];

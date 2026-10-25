@@ -32,6 +32,8 @@ export interface ShopRunResult {
   shopName: string;
   /** The shop search-results page that was checked (link for the email). */
   searchUrl?: string;
+  /** What the fetched page contained; helps to explain "0 found". */
+  diagnostics?: string;
   status: ShopStatus;
   message?: string;
   found: number;

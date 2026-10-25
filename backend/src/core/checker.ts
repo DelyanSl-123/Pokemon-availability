@@ -1,4 +1,5 @@
 import type { DB } from '../db/connection';
+import { diagnose } from '../scraping/diagnose';
 import { extractProducts } from '../scraping/extract';
 import { fetchPage as defaultFetchPage, type PageFetcher } from '../scraping/fetcher';
 import { finishRun, insertRun, listShops, upsertProduct } from '../db/repository';
@@ -60,6 +61,11 @@ export async function runCheck(
     }
 
     try {
+      try {
+        base.diagnostics = diagnose(outcome.html, outcome.url).slice(0, 3000);
+      } catch {
+        /* diagnostics are best-effort */
+      }
       const extracted = extractProducts(outcome.html, outcome.url, {
         filterPokemon: !listsOnlyPokemon(shop.searchUrl),
       });

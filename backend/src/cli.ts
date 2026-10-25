@@ -74,6 +74,15 @@ async function main() {
   lines.push(email?.sent ? `Email sent to ${defaults.mailTo}.` : `EMAIL NOT SENT: ${email?.reason ?? 'disabled'}`);
   console.log(lines.join('\n'));
 
+  // One notice per shop explaining what its page contained (shown on the workflow run page).
+  const escapeData = (s: string) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  const escapeProp = (s: string) => escapeData(s).replace(/:/g, '%3A').replace(/,/g, '%2C');
+  for (const s of summary.shops) {
+    if (s.diagnostics) {
+      console.log(`::notice title=${escapeProp(`${s.shopName}: ${s.found} found`)}::${escapeData(s.diagnostics)}`);
+    }
+  }
+
   // Show the result on the workflow run page (Summary), not only in the raw log.
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Pokémon TCG check\n\n${lines.join('\n')}\n`);
