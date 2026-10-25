@@ -8,6 +8,7 @@ import { createScheduler } from './core/scheduler';
 import { buildServer } from './api/server';
 import { createService } from './core/service';
 import { normalizeShopInput } from './shops/shop-urls';
+import { syncShops } from './shops/sync';
 import type { Settings } from './types';
 
 async function main() {
@@ -23,10 +24,13 @@ async function main() {
 
   const db = openDb(dbPath);
 
-  // First start: seed the shops from the original list.
+  // First start: load the shops from config/shops.json (the file also used by the daily run).
   if (listShops(db).length === 0) {
-    for (const url of ['www.ozone.bg', 'www.toyzzshop.bg']) {
-      createShop(db, normalizeShopInput({ url }));
+    const shopsFile = process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json');
+    if (fs.existsSync(shopsFile)) {
+      syncShops(db, shopsFile);
+    } else {
+      for (const url of ['www.ozone.bg', 'www.toyzzshop.bg']) createShop(db, normalizeShopInput({ url }));
     }
   }
 

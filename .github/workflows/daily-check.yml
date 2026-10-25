@@ -50,6 +50,15 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
 
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokemon-report
+          path: backend/report/report.html
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Save results for the next run
         if: always()
         uses: actions/cache/save@v4

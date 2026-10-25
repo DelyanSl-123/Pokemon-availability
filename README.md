@@ -31,6 +31,16 @@ frontend/
     styles/app.css
 ```
 
+## See all results on your PC (one HTML page)
+
+```bash
+cd backend
+npm install        # first time only
+npm run report     # checks every shop (no email) and opens report/report.html in your browser
+```
+
+`backend/report/report.html` is a single self-contained file: search box, shop / "in stock" / "new" filters, sorting, product links, `OUT OF STOCK` labels and the status of each shop. It needs no server and no internet to open. The daily GitHub run also attaches the same file: open the run in the **Actions** tab and download the **pokemon-report** artifact at the bottom of the page.
+
 ## Run it
 
 Needs Node 20+ (22 recommended). Run these on the machine that will stay on (PC, Raspberry Pi, VPS).
