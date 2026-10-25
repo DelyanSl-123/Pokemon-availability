@@ -51,6 +51,9 @@ async function main() {
   const escapeData = (s: string) => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
   const escapeProp = (s: string) => escapeData(s).replace(/:/g, '%3A').replace(/,/g, '%2C');
   for (const s of summary.shops) {
+    if (s.status !== 'ok') {
+      console.log(`::warning title=${escapeProp(`${s.shopName}: ${s.status}`)}::${escapeData(s.message ?? 'no details')}`);
+    }
     if (s.diagnostics) {
       console.log(`::notice title=${escapeProp(`${s.shopName}: ${s.found} found of ${s.scanned ?? 0} parsed`)}::${escapeData(s.diagnostics)}`);
     }
