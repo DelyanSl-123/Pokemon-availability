@@ -54,6 +54,8 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          # Web app address for the report's sign-in icon (repository variable, not a secret)
+          APP_URL: ${{ vars.APP_URL }}
 
       - name: Upload HTML report
         if: always()

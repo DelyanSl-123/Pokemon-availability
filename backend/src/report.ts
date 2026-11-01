@@ -41,7 +41,10 @@ async function main() {
   const service = createService({ db, mail: mailConfigFromEnv(), defaults });
   const { summary } = await service.runAndNotify('manual', { sendEmail: false });
 
-  const written = writeReport(summary, reportFile);
+  // Locally the sign-in icon points at the web app on this PC unless APP_URL says otherwise.
+  const written = writeReport(summary, reportFile, {
+    appUrl: process.env.APP_URL || `http://127.0.0.1:${process.env.PORT ?? 3001}`,
+  });
   for (const s of summary.shops) {
     const detail = s.status === 'ok' ? `${s.found} found` : `${s.status}: ${s.message ?? ''}`;
     console.log(`  - ${s.shopName}: ${detail}`);

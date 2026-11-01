@@ -59,6 +59,14 @@ describe('buildReportHtml', () => {
     expect(evil).toContain('\\u003c/script\\u003e');
   });
 
+  it('shows a sign-in icon linking to the web app only when its address is known', () => {
+    expect(html).not.toContain('class="account"');
+    const linked = buildReportHtml(summary, { appUrl: 'https://app.example.com/' });
+    expect(linked).toContain('<a class="account" href="https://app.example.com/"');
+    expect(buildReportHtml(summary, { appUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
+    expect(buildReportHtml(summary, { appUrl: 'https://x.test/"><script>' })).not.toContain('"><script>');
+  });
+
   it('works without any product', () => {
     expect(buildReportHtml({ ...summary, products: [] })).toContain('"products":[]');
   });

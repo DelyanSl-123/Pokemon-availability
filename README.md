@@ -44,6 +44,8 @@ npm run report     # checks every shop (no email) and opens report/report.html i
 
 The daily GitHub run publishes the same page to **GitHub Pages** at `https://<your-user>.github.io/<repo>/`, always showing the latest run. One-time setup: in the repository go to **Settings → Pages** and set **Source** to **GitHub Actions** (GitHub Pages needs a public repository or a paid plan, and the published page is public). The file is also attached to each run as the **pokemon-report** artifact at the bottom of the run page in the **Actions** tab.
 
+**Sign-in icon:** the report header shows a person icon (“Sign in”) that opens the web app's sign-in / register screen (see [Accounts](#accounts-admin-and-users)). It appears only when the report knows the app's address: `APP_URL` in `backend/.env` (locally `npm run report` falls back to `http://127.0.0.1:3001`), or, for the GitHub Pages report, a repository **variable** named `APP_URL` under **Settings → Secrets and variables → Actions → Variables**. Use an address other people can reach, such as where you host the backend.
+
 ## Run it
 
 Needs Node 20+ (22 recommended). Run these on the machine that will stay on (PC, Raspberry Pi, VPS).

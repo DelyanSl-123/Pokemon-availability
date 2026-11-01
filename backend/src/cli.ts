@@ -44,7 +44,8 @@ async function main() {
 
   // HTML report of everything found; the workflow publishes it to GitHub Pages and uploads it as a file.
   const reportFile = process.env.REPORT_FILE ?? path.resolve(process.cwd(), 'report', 'report.html');
-  writeReport(summary, reportFile);
+  // APP_URL: address of the web app; adds a sign-in / register icon to the report header.
+  writeReport(summary, reportFile, { appUrl: process.env.APP_URL });
   console.log(`Report written to ${reportFile}`);
 
   // One notice per shop explaining what its page contained (shown on the workflow run page).

@@ -4,9 +4,9 @@ import type { RunSummary } from '../types';
 import { buildReportHtml } from './html';
 
 /** Writes the HTML report (creating the folder) and returns the absolute file path. */
-export function writeReport(summary: RunSummary, file: string): string {
+export function writeReport(summary: RunSummary, file: string, opts: { appUrl?: string } = {}): string {
   const target = path.resolve(file);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, buildReportHtml(summary), 'utf8');
+  fs.writeFileSync(target, buildReportHtml(summary, opts), 'utf8');
   return target;
 }

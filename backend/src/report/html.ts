@@ -29,7 +29,14 @@ const esc = (s: string) =>
  * cards with images: search box, shop / stock / new filters, sorting, shop status and product links.
  * The daily run publishes it to GitHub Pages; `npm run report` writes it locally.
  */
-export function buildReportHtml(summary: RunSummary): string {
+export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } = {}): string {
+  // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
+  const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
+  const accountLink = appUrl
+    ? `<a class="account" href="${esc(appUrl)}" title="Sign in / Register" aria-label="Sign in or register">` +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
+      '<span>Sign in</span></a>'
+    : '';
   const when = new Date(summary.startedAt).toLocaleString('en-GB', { timeZone: 'Europe/Sofia' });
 
   const data = {
@@ -75,6 +82,10 @@ export function buildReportHtml(summary: RunSummary): string {
   h1 { margin:0; font-size:1.7rem; letter-spacing:-.02em; line-height:1.1; }
   h1 span { color:var(--accent); }
   .tagline { color:var(--muted); font-size:.85rem; }
+  .account { margin-left:auto; display:inline-flex; align-items:center; gap:6px; padding:6px 12px 6px 8px; border:1px solid var(--line); border-radius:999px; background:var(--card); color:var(--text); text-decoration:none; font-size:.9rem; font-weight:600; }
+  .account:hover { border-color:var(--accent); color:var(--accent); }
+  .account svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+  @media (max-width:480px) { .account span { display:none; } .account { padding:6px; } }
   h2 { margin:22px 0 10px; font-size:1.1rem; display:flex; gap:8px; align-items:baseline; }
   .sub { color:var(--muted); font-size:.85rem; }
   .stats { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
@@ -113,6 +124,7 @@ export function buildReportHtml(summary: RunSummary): string {
   <header class="brand">
     ${LOGO_SVG}
     <div><h1>Collectible<span>Market</span></h1><div class="tagline">Pokémon TCG availability tracker</div></div>
+    ${accountLink}
   </header>
   <div class="sub">Checked ${esc(when)} (Sofia time) · search phrase “${esc(summary.query)}”</div>
 
