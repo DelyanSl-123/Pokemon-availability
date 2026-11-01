@@ -42,7 +42,7 @@ async function main() {
   lines.push(email?.sent ? `Email sent to ${defaults.mailTo}.` : `EMAIL NOT SENT: ${email?.reason ?? 'disabled'}`);
   console.log(lines.join('\n'));
 
-  // HTML report of everything found; the workflow uploads it as a downloadable file.
+  // HTML report of everything found; the workflow publishes it to GitHub Pages and uploads it as a file.
   const reportFile = process.env.REPORT_FILE ?? path.resolve(process.cwd(), 'report', 'report.html');
   writeReport(summary, reportFile);
   console.log(`Report written to ${reportFile}`);

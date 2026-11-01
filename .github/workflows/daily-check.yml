@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  pages: write # publish the HTML report to GitHub Pages
+  id-token: write
 
 concurrency:
   group: daily-check
@@ -17,6 +19,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     defaults:
       run:
         working-directory: backend
@@ -58,6 +63,23 @@ jobs:
           path: backend/report/report.html
           if-no-files-found: ignore
           retention-days: 14
+
+      # Same report as a web page at https://<user>.github.io/<repo>/ (always the latest run).
+      - name: Prepare GitHub Pages site
+        id: pages-site
+        if: always() && hashFiles('backend/report/report.html') != ''
+        run: mkdir -p ../_site && cp report/report.html ../_site/index.html
+
+      - name: Upload GitHub Pages site
+        if: always() && steps.pages-site.outcome == 'success'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Publish to GitHub Pages
+        id: deployment
+        if: always() && steps.pages-site.outcome == 'success'
+        uses: actions/deploy-pages@v4
 
       - name: Save results for the next run
         if: always()

@@ -14,8 +14,9 @@ const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
- * One self-contained HTML page (no server, no internet needed) with every product found in a run:
- * search box, shop / stock / new filters, sorting, shop status and links to each product page.
+ * One self-contained HTML page (no server needed) with every product found in a run, shown as
+ * cards with images: search box, shop / stock / new filters, sorting, shop status and product links.
+ * The daily run publishes it to GitHub Pages; `npm run report` writes it locally.
  */
 export function buildReportHtml(summary: RunSummary): string {
   const when = new Date(summary.startedAt).toLocaleString('en-GB', { timeZone: 'Europe/Sofia' });
@@ -49,35 +50,46 @@ export function buildReportHtml(summary: RunSummary): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
 <title>Pokémon TCG report ${esc(when)}</title>
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#6b7686; --line:#e3e7ed; --accent:#e3350d; --ok:#17803d; --bad:#b42318; --warn:#b45309; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1a2029; --text:#e8ecf2; --muted:#93a0b2; --line:#2a3340; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; } }
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#6b7686; --line:#e3e7ed; --accent:#e3350d; --ok:#17803d; --bad:#b42318; --warn:#b45309; --img:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1a2029; --text:#e8ecf2; --muted:#93a0b2; --line:#2a3340; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; --img:#f3f4f6; } }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-  main { max-width:1100px; margin:0 auto; padding:20px 16px 60px; }
+  main { max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
   h1 { margin:0 0 4px; font-size:1.5rem; }
+  h2 { margin:22px 0 10px; font-size:1.1rem; display:flex; gap:8px; align-items:baseline; }
   .sub { color:var(--muted); font-size:.85rem; }
-  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:14px; overflow-x:auto; }
   .stats { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
   .stat { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 14px; }
   .stat b { display:block; font-size:1.3rem; }
-  .shops { display:flex; gap:8px; flex-wrap:wrap; }
-  .chip { border:1px solid var(--line); border-left:4px solid var(--ok); border-radius:8px; padding:6px 10px; font-size:.85rem; }
+  .shops { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .chip { font:inherit; color:inherit; text-align:left; cursor:pointer; background:var(--card); border:1px solid var(--line); border-left:4px solid var(--ok); border-radius:8px; padding:6px 10px; font-size:.85rem; }
   .chip.blocked, .chip.error { border-left-color:var(--warn); }
-  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .chip.active { outline:2px solid var(--accent); outline-offset:1px; }
+  .controls { position:sticky; top:0; z-index:1; background:var(--bg); display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px 0; margin-top:6px; border-bottom:1px solid var(--line); }
   input[type=search], select { font:inherit; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
-  input[type=search] { flex:1; min-width:200px; }
+  input[type=search] { flex:1; min-width:180px; }
   label { display:inline-flex; gap:6px; align-items:center; font-size:.9rem; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
-  th { color:var(--muted); font-size:.8rem; }
-  td.right, th.right { text-align:right; white-space:nowrap; }
-  td img { width:44px; height:44px; object-fit:contain; border-radius:6px; background:#fff; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(155px, 1fr)); gap:12px; }
+  .card { display:flex; flex-direction:column; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; color:inherit; text-decoration:none; transition:transform .12s, box-shadow .12s; }
+  .card:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
+  .card.oos { opacity:.6; }
+  .pic { position:relative; aspect-ratio:1; background:var(--img); display:flex; align-items:center; justify-content:center; }
+  .pic img { width:100%; height:100%; object-fit:contain; padding:10px; }
+  .pic .none { color:#9aa3af; font-size:.8rem; }
+  .flags { position:absolute; top:8px; left:8px; display:flex; gap:4px; flex-wrap:wrap; }
+  .flags .badge { background:var(--ok); color:#fff; border-color:var(--ok); margin:0; }
+  .body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .title { font-weight:600; font-size:.92rem; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .shopname { color:var(--muted); font-size:.8rem; }
+  .foot { margin-top:auto; display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; }
+  .price { font-weight:700; font-size:1.05rem; }
   a { color:var(--accent); }
-  .badge { display:inline-block; padding:1px 8px; border-radius:999px; font-size:.75rem; font-weight:600; border:1px solid currentColor; margin-left:4px; white-space:nowrap; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:999px; font-size:.72rem; font-weight:600; border:1px solid currentColor; white-space:nowrap; }
   .ok { color:var(--ok); } .bad { color:var(--bad); } .muted { color:var(--muted); } .warn { color:var(--warn); }
-  tr.oos td { opacity:.65; }
+  .empty { padding:30px 0; text-align:center; }
 </style>
 </head>
 <body>
@@ -92,29 +104,23 @@ export function buildReportHtml(summary: RunSummary): string {
     <div class="stat"><b id="s-new">0</b><span class="sub">new today</span></div>
   </div>
 
-  <section>
-    <div class="shops" id="shops"></div>
-  </section>
+  <div class="shops" id="shops"></div>
 
-  <section>
-    <div class="controls">
-      <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
-      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
-      <select id="sort" aria-label="Sort">
-        <option value="shop">Sort: shop, in stock first</option>
-        <option value="price-asc">Sort: price low → high</option>
-        <option value="price-desc">Sort: price high → low</option>
-        <option value="name">Sort: name</option>
-      </select>
-      <label><input type="checkbox" id="instock"> In stock only</label>
-      <label><input type="checkbox" id="onlynew"> New only</label>
-      <span class="sub" id="count"></span>
-    </div>
-    <table>
-      <thead><tr><th></th><th>Product</th><th>Shop</th><th class="right">Price</th><th>Stock</th></tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </section>
+  <div class="controls">
+    <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
+    <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
+    <select id="sort" aria-label="Sort">
+      <option value="shop">Group by shop, in stock first</option>
+      <option value="price-asc">Price low → high</option>
+      <option value="price-desc">Price high → low</option>
+      <option value="name">Name</option>
+    </select>
+    <label><input type="checkbox" id="instock"> In stock only</label>
+    <label><input type="checkbox" id="onlynew"> New only</label>
+    <span class="sub" id="count"></span>
+  </div>
+
+  <div id="results"></div>
 </main>
 
 <script type="application/json" id="data">${safeJson(data)}</script>
@@ -134,79 +140,110 @@ export function buildReportHtml(summary: RunSummary): string {
   function priceText(p) { return p.price === null ? '—' : p.price.toFixed(2) + ' ' + p.currency; }
 
   // totals
-  var inStock = products.filter(function (p) { return p.inStock === true; }).length;
-  var oos = products.filter(function (p) { return p.inStock === false; }).length;
   $('s-total').textContent = products.length;
-  $('s-stock').textContent = inStock;
-  $('s-oos').textContent = oos;
+  $('s-stock').textContent = products.filter(function (p) { return p.inStock === true; }).length;
+  $('s-oos').textContent = products.filter(function (p) { return p.inStock === false; }).length;
   $('s-new').textContent = products.filter(function (p) { return p.isNew; }).length;
 
-  // shop status chips + filter options
+  // shop status chips (click to filter) + filter options
   data.shops.forEach(function (s) {
-    var chip = el('div', 'chip ' + s.status);
-    var name = el('b');
-    var page = safeUrl(s.page);
-    if (page) { var a = el('a', '', s.name); a.href = page; a.target = '_blank'; a.rel = 'noreferrer'; name.appendChild(a); }
-    else { name.textContent = s.name; }
-    chip.appendChild(name);
+    var chip = el('button', 'chip ' + s.status);
+    chip.type = 'button';
+    chip.dataset.shop = s.name;
+    chip.appendChild(el('b', '', s.name));
     var detail = s.status === 'ok'
       ? s.found + ' found' + (s.scanned !== null ? ' of ' + s.scanned + ' on page' : '')
       : s.status + ': ' + s.message;
     chip.appendChild(el('div', 'sub', detail));
     if (s.status === 'ok' && s.message) chip.appendChild(el('div', 'sub', s.message));
+    chip.addEventListener('click', function () {
+      $('shop').value = $('shop').value === s.name ? '' : s.name;
+      render();
+    });
     $('shops').appendChild(chip);
     var opt = el('option', '', s.name); opt.value = s.name; $('shop').appendChild(opt);
   });
 
   function rank(p) { return p.inStock === true ? 0 : p.inStock === null ? 1 : 2; }
-  function sorters() {
-    return {
-      'shop': function (a, b) { return a.shop.localeCompare(b.shop) || rank(a) - rank(b) || a.title.localeCompare(b.title); },
-      'price-asc': function (a, b) { return (a.price === null) - (b.price === null) || a.price - b.price; },
-      'price-desc': function (a, b) { return (a.price === null) - (b.price === null) || b.price - a.price; },
-      'name': function (a, b) { return a.title.localeCompare(b.title); }
-    };
+  var sorters = {
+    'shop': function (a, b) { return a.shop.localeCompare(b.shop) || rank(a) - rank(b) || a.title.localeCompare(b.title); },
+    'price-asc': function (a, b) { return (a.price === null) - (b.price === null) || a.price - b.price; },
+    'price-desc': function (a, b) { return (a.price === null) - (b.price === null) || b.price - a.price; },
+    'name': function (a, b) { return a.title.localeCompare(b.title); }
+  };
+
+  function card(p) {
+    var link = safeUrl(p.url);
+    var c = el(link ? 'a' : 'div', 'card' + (p.inStock === false ? ' oos' : ''));
+    if (link) { c.href = link; c.target = '_blank'; c.rel = 'noreferrer'; }
+
+    var pic = el('div', 'pic');
+    var src = safeUrl(p.image);
+    if (src) {
+      var i = el('img');
+      i.src = src; i.alt = ''; i.loading = 'lazy'; i.referrerPolicy = 'no-referrer';
+      i.addEventListener('error', function () { pic.replaceChild(el('span', 'none', 'No image'), i); });
+      pic.appendChild(i);
+    } else {
+      pic.appendChild(el('span', 'none', 'No image'));
+    }
+    var flags = el('div', 'flags');
+    if (p.isNew) flags.appendChild(el('span', 'badge', 'NEW'));
+    if (p.backInStock) flags.appendChild(el('span', 'badge', 'BACK IN STOCK'));
+    pic.appendChild(flags);
+    c.appendChild(pic);
+
+    var body = el('div', 'body');
+    var title = el('div', 'title', p.title); title.title = p.title;
+    body.appendChild(title);
+    body.appendChild(el('div', 'shopname', p.shop));
+    var foot = el('div', 'foot');
+    foot.appendChild(el('span', 'price', priceText(p)));
+    if (p.inStock === true) foot.appendChild(el('span', 'badge ok', 'In stock'));
+    else if (p.inStock === false) foot.appendChild(el('span', 'badge bad', 'OUT OF STOCK'));
+    else foot.appendChild(el('span', 'badge muted', 'Stock unknown'));
+    body.appendChild(foot);
+    c.appendChild(body);
+    return c;
   }
 
   function render() {
     var q = $('q').value.trim().toLowerCase();
     var shop = $('shop').value;
+    var sort = $('sort').value;
     var list = products.filter(function (p) {
       if (shop && p.shop !== shop) return false;
       if ($('instock').checked && p.inStock !== true) return false;
       if ($('onlynew').checked && !p.isNew) return false;
       return !q || (p.title + ' ' + p.shop).toLowerCase().indexOf(q) !== -1;
-    }).sort(sorters()[$('sort').value]);
+    }).sort(sorters[sort]);
 
-    var body = $('rows');
-    body.textContent = '';
-    list.forEach(function (p) {
-      var tr = el('tr', p.inStock === false ? 'oos' : '');
-      var imgTd = el('td');
-      var img = safeUrl(p.image);
-      if (img) { var i = el('img'); i.src = img; i.alt = ''; i.loading = 'lazy'; imgTd.appendChild(i); }
-      tr.appendChild(imgTd);
-
-      var nameTd = el('td');
-      var link = safeUrl(p.url);
-      if (link) { var a = el('a', '', p.title); a.href = link; a.target = '_blank'; a.rel = 'noreferrer'; nameTd.appendChild(a); }
-      else { nameTd.textContent = p.title; }
-      if (p.isNew) nameTd.appendChild(el('span', 'badge ok', 'NEW'));
-      if (p.backInStock) nameTd.appendChild(el('span', 'badge ok', 'BACK IN STOCK'));
-      tr.appendChild(nameTd);
-
-      tr.appendChild(el('td', '', p.shop));
-      tr.appendChild(el('td', 'right', priceText(p)));
-
-      var stockTd = el('td');
-      if (p.inStock === true) stockTd.appendChild(el('span', 'badge ok', 'In stock'));
-      else if (p.inStock === false) stockTd.appendChild(el('span', 'badge bad', 'OUT OF STOCK'));
-      else stockTd.appendChild(el('span', 'badge muted', 'Unknown'));
-      tr.appendChild(stockTd);
-      body.appendChild(tr);
+    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
+      c.classList.toggle('active', c.dataset.shop === shop);
     });
+
+    var out = $('results');
+    out.textContent = '';
     if (list.length === 0) {
-      var empty = el('tr'); var td = el('td', 'sub', 'Nothing matches.'); td.colSpan = 5; empty.appendChild(td); body.appendChild(empty);
+      out.appendChild(el('div', 'sub empty', 'Nothing matches.'));
+    } else if (sort === 'shop') {
+      var grid = null, current = null;
+      list.forEach(function (p) {
+        if (p.shop !== current) {
+          current = p.shop;
+          var h = el('h2', '', p.shop);
+          h.appendChild(el('span', 'sub', list.filter(function (x) { return x.shop === current; }).length + ' products'));
+          out.appendChild(h);
+          grid = el('div', 'grid');
+          out.appendChild(grid);
+        }
+        grid.appendChild(card(p));
+      });
+    } else {
+      var all = el('div', 'grid');
+      all.style.marginTop = '14px';
+      list.forEach(function (p) { all.appendChild(card(p)); });
+      out.appendChild(all);
     }
     $('count').textContent = list.length + ' shown';
   }

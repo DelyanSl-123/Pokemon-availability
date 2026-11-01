@@ -39,7 +39,9 @@ npm install        # first time only
 npm run report     # checks every shop (no email) and opens report/report.html in your browser
 ```
 
-`backend/report/report.html` is a single self-contained file: search box, shop / "in stock" / "new" filters, sorting, product links, `OUT OF STOCK` labels and the status of each shop. It needs no server and no internet to open. The daily GitHub run also attaches the same file: open the run in the **Actions** tab and download the **pokemon-report** artifact at the bottom of the page.
+`backend/report/report.html` is a single self-contained file: product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop. It needs no server to open (product images load from the shops' sites).
+
+The daily GitHub run publishes the same page to **GitHub Pages** at `https://<your-user>.github.io/<repo>/`, always showing the latest run. One-time setup: in the repository go to **Settings → Pages** and set **Source** to **GitHub Actions** (GitHub Pages needs a public repository or a paid plan, and the published page is public). The file is also attached to each run as the **pokemon-report** artifact at the bottom of the run page in the **Actions** tab.
 
 ## Run it
 
