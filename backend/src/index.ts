@@ -30,7 +30,7 @@ async function main() {
     if (fs.existsSync(shopsFile)) {
       syncShops(db, shopsFile);
     } else {
-      for (const url of ['www.ozone.bg', 'www.toyzzshop.bg']) createShop(db, normalizeShopInput({ url }));
+      createShop(db, normalizeShopInput({ url: 'www.ozone.bg' }));
     }
   }
 
