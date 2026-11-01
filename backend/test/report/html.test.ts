@@ -37,7 +37,8 @@ describe('buildReportHtml', () => {
 
   it('is a complete page that carries the results as data', () => {
     expect(html.startsWith('<!doctype html>')).toBe(true);
-    expect(html).toContain('<title>Pokémon TCG report');
+    expect(html).toContain('<title>CollectibleMarket');
+    expect(html).toContain('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,');
     expect(html).toContain('Pokemon TCG Booster');
     expect(html).toContain('https://www.ozone.bg/p/2');
     expect(html).toContain('"inStock":false');

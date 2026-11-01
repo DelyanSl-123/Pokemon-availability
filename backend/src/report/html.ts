@@ -10,6 +10,17 @@ function safeJson(value: unknown): string {
     .split(String.fromCharCode(0x2029)).join('\\u2029');
 }
 
+/** CollectibleMarket logo: two stacked trading cards with a sparkle. Used in the header and as favicon. */
+export const LOGO_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CollectibleMarket">' +
+  '<defs><linearGradient id="cm-g" x1="0" y1="0" x2="1" y2="1">' +
+  '<stop offset="0" stop-color="#ff6a3d"/><stop offset="1" stop-color="#c81e0a"/></linearGradient></defs>' +
+  '<rect x="9" y="13" width="30" height="42" rx="5" fill="#2b3a4f" stroke="#fff" stroke-width="2" transform="rotate(-12 24 34)"/>' +
+  '<g transform="rotate(10 39 30)">' +
+  '<rect x="24" y="9" width="30" height="42" rx="5" fill="url(#cm-g)" stroke="#fff" stroke-width="2"/>' +
+  '<path d="M39 19.5 41.6 27.4 49.5 30 41.6 32.6 39 40.5 36.4 32.6 28.5 30 36.4 27.4Z" fill="#fff"/>' +
+  '</g></svg>';
+
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -51,14 +62,19 @@ export function buildReportHtml(summary: RunSummary): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Pokémon TCG report ${esc(when)}</title>
+<title>CollectibleMarket · ${esc(when)}</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}">
 <style>
   :root { --bg:#f6f7f9; --card:#fff; --text:#1c2430; --muted:#6b7686; --line:#e3e7ed; --accent:#e3350d; --ok:#17803d; --bad:#b42318; --warn:#b45309; --img:#fff; }
   @media (prefers-color-scheme: dark) { :root { --bg:#12161c; --card:#1a2029; --text:#e8ecf2; --muted:#93a0b2; --line:#2a3340; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24; --img:#f3f4f6; } }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
   main { max-width:1200px; margin:0 auto; padding:20px 16px 60px; }
-  h1 { margin:0 0 4px; font-size:1.5rem; }
+  .brand { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  .brand svg { width:48px; height:48px; flex:none; }
+  h1 { margin:0; font-size:1.7rem; letter-spacing:-.02em; line-height:1.1; }
+  h1 span { color:var(--accent); }
+  .tagline { color:var(--muted); font-size:.85rem; }
   h2 { margin:22px 0 10px; font-size:1.1rem; display:flex; gap:8px; align-items:baseline; }
   .sub { color:var(--muted); font-size:.85rem; }
   .stats { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
@@ -94,7 +110,10 @@ export function buildReportHtml(summary: RunSummary): string {
 </head>
 <body>
 <main>
-  <h1>Pokémon TCG report</h1>
+  <header class="brand">
+    ${LOGO_SVG}
+    <div><h1>Collectible<span>Market</span></h1><div class="tagline">Pokémon TCG availability tracker</div></div>
+  </header>
   <div class="sub">Checked ${esc(when)} (Sofia time) · search phrase “${esc(summary.query)}”</div>
 
   <div class="stats">
