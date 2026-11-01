@@ -51,6 +51,23 @@ export interface RunOutcome {
   email: { sent: boolean; reason?: string } | null;
 }
 
+export interface User {
+  id: number;
+  email: string;
+  role: 'admin' | 'user';
+  createdAt: string;
+}
+
+/** An error response from the API; `status` 401 means the session is missing or expired. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
@@ -58,13 +75,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `Request failed (${res.status})`, res.status);
   return data as T;
 }
 
 const json = (body: unknown) => JSON.stringify(body);
 
 export const api = {
+  me: () => request<{ user: User }>('/auth/me').then((r) => r.user),
+  login: (body: { email: string; password: string }) =>
+    request<{ user: User }>('/auth/login', { method: 'POST', body: json(body) }).then((r) => r.user),
+  register: (body: { email: string; password: string }) =>
+    request<{ user: User }>('/auth/register', { method: 'POST', body: json(body) }).then((r) => r.user),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
   shops: () => request<Shop[]>('/shops'),
   addShop: (body: { url: string; searchUrl?: string }) => request<Shop>('/shops', { method: 'POST', body: json(body) }),
   patchShop: (id: number, body: Partial<Pick<Shop, 'name' | 'searchUrl' | 'enabled' | 'respectRobots'>>) =>

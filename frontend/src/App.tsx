@@ -1,10 +1,34 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { api, type Product, type RunOutcome, type RunSummary, type Settings, type Shop } from './api/client';
+import { api, ApiError, type Product, type RunOutcome, type RunSummary, type Settings, type Shop, type User } from './api/client';
+import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
 import { StockBadge } from './components/StockBadge';
 import { fmtDate } from './utils/format';
 
 export default function App() {
+  // undefined while checking the session, null when signed out.
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  useEffect(() => {
+    api.me().then(setUser, () => setUser(null));
+  }, []);
+
+  if (user === undefined) return <main className="auth sub">Loading…</main>;
+  if (user === null) return <AuthForm onSignedIn={setUser} />;
+  return (
+    <Tracker
+      user={user}
+      onSignOut={() => {
+        void api.logout().catch(() => undefined);
+        setUser(null);
+      }}
+      onSessionExpired={() => setUser(null)}
+    />
+  );
+}
+
+function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut: () => void; onSessionExpired: () => void }) {
+  const isAdmin = user.role === 'admin';
   const [shops, setShops] = useState<Shop[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -27,9 +51,10 @@ export default function App() {
     try {
       await fn();
     } catch (e) {
+      if (e instanceof ApiError && e.status === 401) return onSessionExpired();
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [onSessionExpired]);
 
   const loadProducts = useCallback(
     () => api.products({ shopId: shopFilter === '' ? undefined : shopFilter, inStock: inStockOnly }).then(setProducts),
@@ -39,13 +64,13 @@ export default function App() {
   const loadAll = useCallback(
     () =>
       guard(async () => {
-        const [s, r, cfg] = await Promise.all([api.shops(), api.runs(), api.settings()]);
+        const [s, r, cfg] = await Promise.all([api.shops(), api.runs(), isAdmin ? api.settings() : null]);
         setShops(s);
         setRuns(r);
         setSettings(cfg);
         await loadProducts();
       }),
-    [guard, loadProducts],
+    [guard, loadProducts, isAdmin],
   );
 
   useEffect(() => {
@@ -93,13 +118,25 @@ export default function App() {
           <h1>Pokémon TCG Tracker</h1>
           <p className="sub">Checks your shops once a day and emails what it finds.</p>
         </div>
-        <div className="run-box">
-          <label className="inline">
-            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> Send email
-          </label>
-          <button className="primary" onClick={runNow} disabled={running}>
-            {running ? 'Checking…' : 'Run check now'}
-          </button>
+        <div className="side">
+          <div className="account">
+            <span>
+              {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
+            </span>
+            <button className="link" onClick={onSignOut}>
+              Sign out
+            </button>
+          </div>
+          {isAdmin && (
+            <div className="run-box">
+              <label className="inline">
+                <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> Send email
+              </label>
+              <button className="primary" onClick={runNow} disabled={running}>
+                {running ? 'Checking…' : 'Run check now'}
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -132,61 +169,86 @@ export default function App() {
             </div>
           </>
         ) : (
-          <p className="sub">No checks yet. Press “Run check now”.</p>
+          <p className="sub">No checks yet.{isAdmin && ' Press “Run check now”.'}</p>
         )}
       </section>
 
       <section>
         <h2>Shops</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Shop</th>
-              <th>Search URL (use {'{query}'})</th>
-              <th className="center">Enabled</th>
-              <th className="center">Obey robots.txt</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {shops.map((shop) => (
-              <ShopRow
-                key={shop.id}
-                shop={shop}
-                onChange={(patch) =>
-                  void guard(async () => {
-                    await api.patchShop(shop.id, patch);
-                    setShops(await api.shops());
-                  })
-                }
-                onDelete={() =>
-                  window.confirm(`Remove ${shop.name} and its saved products?`) &&
-                  void guard(async () => {
-                    await api.deleteShop(shop.id);
-                    await loadAll();
-                  })
-                }
-              />
-            ))}
-            {shops.length === 0 && (
+        {!isAdmin ? (
+          <table>
+            <thead>
               <tr>
-                <td colSpan={5} className="sub">
-                  No shops yet.
-                </td>
+                <th>Shop</th>
+                <th>Checked page</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-        <form className="row" onSubmit={addShop}>
-          <input required placeholder="www.example.bg" value={newShopUrl} onChange={(e) => setNewShopUrl(e.target.value)} />
-          <input
-            className="wide"
-            placeholder="Optional search URL, e.g. https://www.example.bg/search?q={query}"
-            value={newShopSearch}
-            onChange={(e) => setNewShopSearch(e.target.value)}
-          />
-          <button type="submit">Add shop</button>
-        </form>
+            </thead>
+            <tbody>
+              {shops
+                .filter((s) => s.enabled)
+                .map((shop) => (
+                  <tr key={shop.id}>
+                    <td>
+                      <strong>{shop.name}</strong>
+                    </td>
+                    <td className="sub">{shop.searchUrl}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        ) : (
+          <>
+            <table>
+              <thead>
+                <tr>
+                  <th>Shop</th>
+                  <th>Search URL (use {'{query}'})</th>
+                  <th className="center">Enabled</th>
+                  <th className="center">Obey robots.txt</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {shops.map((shop) => (
+                  <ShopRow
+                    key={shop.id}
+                    shop={shop}
+                    onChange={(patch) =>
+                      void guard(async () => {
+                        await api.patchShop(shop.id, patch);
+                        setShops(await api.shops());
+                      })
+                    }
+                    onDelete={() =>
+                      window.confirm(`Remove ${shop.name} and its saved products?`) &&
+                      void guard(async () => {
+                        await api.deleteShop(shop.id);
+                        await loadAll();
+                      })
+                    }
+                  />
+                ))}
+                {shops.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="sub">
+                      No shops yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            <form className="row" onSubmit={addShop}>
+              <input required placeholder="www.example.bg" value={newShopUrl} onChange={(e) => setNewShopUrl(e.target.value)} />
+              <input
+                className="wide"
+                placeholder="Optional search URL, e.g. https://www.example.bg/search?q={query}"
+                value={newShopSearch}
+                onChange={(e) => setNewShopSearch(e.target.value)}
+              />
+              <button type="submit">Add shop</button>
+            </form>
+          </>
+        )}
       </section>
 
       <section>

@@ -261,3 +261,23 @@ a {
   color: var(--ok);
   border-color: var(--ok);
 }
+
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+main.auth {
+  max-width: 420px;
+  margin-top: 8vh;
+}

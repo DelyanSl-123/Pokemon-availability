@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ensureAdmin } from './auth/users';
 import { openDb } from './db/connection';
 import { mailConfigFromEnv } from './mail/mailer';
 import { createShop, getSettings, listShops } from './db/repository';
@@ -34,6 +35,15 @@ async function main() {
     }
   }
 
+  // The admin account comes only from the environment; everyone who registers is a regular user.
+  const adminEmail = process.env.ADMIN_EMAIL?.trim();
+  if (adminEmail) {
+    const admin = ensureAdmin(db, adminEmail, process.env.ADMIN_PASSWORD || undefined);
+    if (!admin) console.log(`ADMIN_EMAIL is set but ADMIN_PASSWORD is not: no admin account for ${adminEmail} yet.`);
+  } else {
+    console.log('ADMIN_EMAIL not set: nobody can manage shops, run checks or change settings in the web UI.');
+  }
+
   const service = createService({ db, mail: mailConfigFromEnv(), defaults });
   const scheduler = createScheduler(() => service.runAndNotify('schedule'), timezone);
 
@@ -44,6 +54,7 @@ async function main() {
     scheduler,
     defaults,
     staticDir: fs.existsSync(frontendDist) ? frontendDist : undefined,
+    secureCookies: process.env.COOKIE_SECURE === 'true',
   });
 
   const settings = getSettings(db, defaults);

@@ -15,7 +15,8 @@ backend/
     index.ts                        long-running server: API + built-in scheduler
     cli.ts                          one-shot run: sync shops, check, email, exit
     types.ts                        shared types
-    api/server.ts                   REST API (Fastify)
+    api/server.ts                   REST API (Fastify), sign-in and role checks
+    auth/                           users.ts (accounts, admin, sessions), passwords.ts (scrypt hashing)
     core/                           checker.ts (run a check), service.ts (check + email), scheduler.ts (cron)
     scraping/                       fetcher.ts (HTTP + robots.txt), robots.ts (parser), extract.ts (find products)
     shops/shop-urls.ts              shop URL helpers and rules
@@ -26,7 +27,7 @@ frontend/
   src/
     App.tsx                         page layout and state
     api/client.ts                   backend API client and types
-    components/                     ShopRow, StockBadge
+    components/                     AuthForm (sign in / register), ShopRow, StockBadge
     utils/format.ts                 small helpers
     styles/app.css
 ```
@@ -39,7 +40,7 @@ npm install        # first time only
 npm run report     # checks every shop (no email) and opens report/report.html in your browser
 ```
 
-`backend/report/report.html` is a single self-contained file: product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop. It needs no server to open (product images load from the shops' sites).
+`backend/report/report.html` is a single self-contained file, branded **CollectibleMarket** (logo in `assets/collectiblemarket-logo.svg`, also built into the page and used as its tab icon): product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop. It needs no server to open (product images load from the shops' sites).
 
 The daily GitHub run publishes the same page to **GitHub Pages** at `https://<your-user>.github.io/<repo>/`, always showing the latest run. One-time setup: in the repository go to **Settings → Pages** and set **Source** to **GitHub Actions** (GitHub Pages needs a public repository or a paid plan, and the published page is public). The file is also attached to each run as the **pokemon-report** artifact at the bottom of the run page in the **Actions** tab.
 
@@ -64,6 +65,19 @@ npm run dev               # UI on http://localhost:5173
 Single-process setup: run `npm run build` in `frontend/`, then `npm run build && npm start` in `backend/`. The backend serves `frontend/dist` itself on port 3001.
 
 The daily job runs inside the backend process (default 09:00, Europe/Sofia), so the backend has to be running. Keep it alive with `pm2`, `systemd`, or Docker.
+
+### Accounts (admin and users)
+
+The web UI needs a sign-in. There are two roles:
+
+| Role | Who | Can |
+| --- | --- | --- |
+| **Admin** | only the account set in `ADMIN_EMAIL` | everything: add/edit/remove shops, run a check, change email/schedule settings |
+| **User** | anyone who registers on the sign-in screen | view products, shops and the last run |
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. On every start the backend creates that account (or updates its password) and makes it the only admin. Registering can never create an admin, and nobody can register with the admin's email. Passwords are stored as salted scrypt hashes; sign-in uses an HttpOnly session cookie valid for 30 days. If you serve the app over HTTPS, set `COOKIE_SECURE=true`.
+
+Only people who can reach the backend can register, so others can only sign up if you host it somewhere public. The GitHub Pages report is separate and has no sign-in.
 
 ## Run daily on GitHub Actions (no server needed)
 
@@ -106,4 +120,10 @@ For each shop's search-results page the parser tries, in order: schema.org JSON-
 
 ## API
 
-`GET/POST /api/shops`, `PATCH/DELETE /api/shops/:id`, `GET /api/products?shopId=&inStock=true`, `GET /api/runs`, `POST /api/run {sendEmail}`, `GET/PUT /api/settings`.
+Accounts (no sign-in needed): `POST /api/auth/register {email, password}`, `POST /api/auth/login {email, password}`, `POST /api/auth/logout`, `GET /api/auth/me`. `GET /api/health` is also open.
+
+Signed in (any user): `GET /api/shops`, `GET /api/products?shopId=&inStock=true`, `GET /api/runs`.
+
+Admin only: `POST /api/shops`, `PATCH/DELETE /api/shops/:id`, `POST /api/run {sendEmail}`, `GET/PUT /api/settings`.
+
+Without a session the API answers `401`; a regular user calling an admin endpoint gets `403`.
