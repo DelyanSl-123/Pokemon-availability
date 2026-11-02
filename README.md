@@ -103,6 +103,8 @@ Use the **Shops** table in the UI (or `POST /api/shops`). Type just `www.example
 
 A shop can also be a fixed category/listing page: give a `searchUrl` **without** `{query}` (e.g. the Pokemon Center UK page `https://www.pokemoncenter.com/en-gb/category/tcg-cards`). Every product on such a page is treated as a match. Out-of-stock products are labelled `[OUT OF STOCK]` in the email and sorted last. Note that pokemoncenter.com loads products with JavaScript and may block bots, so it can show up as `blocked` or `0 found`.
 
+A shop that blocks the tracker (e.g. toyzzshop.bg, whose Cloudflare protection answers with HTTP 403) can be kept on the list with `"manual": true` and an optional `"note"`. It is never fetched or stored in the database; the HTML report shows it in the Shops row as **Check manually ↗**, linking to its `searchUrl` (or home page), so it can be checked by hand.
+
 Built-in presets (unverified, edit them if a search returns nothing):
 
 | Shop | Search URL |

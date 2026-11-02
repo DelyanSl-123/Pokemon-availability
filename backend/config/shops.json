@@ -29,5 +29,12 @@
     "url": "https://itcg.bg",
     "name": "itcg.bg",
     "searchUrl": "https://itcg.bg/collections/pokemon-tcg"
+  },
+  {
+    "url": "https://toyzzshop.bg",
+    "name": "toyzzshop.bg",
+    "searchUrl": "https://toyzzshop.bg/nastolni-igri",
+    "manual": true,
+    "note": "The shop blocks automatic checks (HTTP 403)"
   }
 ]

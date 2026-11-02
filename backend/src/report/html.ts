@@ -29,7 +29,14 @@ const esc = (s: string) =>
  * cards with images: search box, shop / stock / new filters, sorting, shop status and product links.
  * The daily run publishes it to GitHub Pages; `npm run report` writes it locally.
  */
-export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } = {}): string {
+export interface ReportOptions {
+  /** Address of the web app; adds a sign-in / register icon to the header (http(s) only). */
+  appUrl?: string;
+  /** Shops that are never checked automatically; listed with a link to check them by hand. */
+  manualShops?: { name: string; url: string; note: string }[];
+}
+
+export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): string {
   // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
   const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
   const accountLink = appUrl
@@ -50,6 +57,7 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
       found: s.found,
       scanned: s.scanned ?? null,
     })),
+    manualShops: (opts.manualShops ?? []).map((s) => ({ name: s.name, page: s.url, note: s.note })),
     products: summary.products.map((p) => ({
       title: p.title,
       url: p.url,
@@ -127,6 +135,10 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
   .chip.active { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
   .dot { width:8px; height:8px; border-radius:50%; flex:none; background:var(--ok); }
   .chip.blocked .dot, .chip.error .dot { background:var(--warn); }
+  .chip.manual { border-style:dashed; border-left:4px solid var(--muted); box-shadow:none; background:transparent; color:inherit; text-decoration:none; }
+  .chip.manual .dot { background:transparent; border:2px solid var(--muted); }
+  a.chip.manual:hover { border-color:var(--accent); }
+  a.chip.manual:hover .sub:first-of-type { color:var(--accent); }
   @media (max-width:560px) {
     .shops { flex-wrap:nowrap; overflow-x:auto; margin:0 -16px; padding:2px 16px 8px; scrollbar-width:none; }
     .shops::-webkit-scrollbar { display:none; }
@@ -375,6 +387,21 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
     });
     $('shops').appendChild(chip);
     var opt = el('option', '', s.name); opt.value = s.name; $('shop').appendChild(opt);
+  });
+
+  // shops that cannot be checked automatically: a link to their page, to check by hand
+  (data.manualShops || []).forEach(function (s) {
+    var page = safeUrl(s.page);
+    var chip = el(page ? 'a' : 'span', 'chip manual');
+    if (page) { chip.href = page; chip.target = '_blank'; chip.rel = 'noreferrer'; }
+    chip.title = 'Not checked automatically – open the shop to check it yourself';
+    chip.appendChild(el('span', 'dot'));
+    var text = el('span');
+    text.appendChild(el('b', '', s.name));
+    text.appendChild(el('div', 'sub', 'Check manually' + (page ? ' ↗' : '')));
+    if (s.note) text.appendChild(el('div', 'sub', s.note));
+    chip.appendChild(text);
+    $('shops').appendChild(chip);
   });
 
   function rank(p) { return p.inStock === true ? 0 : p.inStock === null ? 1 : 2; }

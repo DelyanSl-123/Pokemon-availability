@@ -80,6 +80,17 @@ describe('buildReportHtml', () => {
     expect(html).toContain("'#compare/'");
   });
 
+  it('lists shops to check by hand with their link and note', () => {
+    const withManual = buildReportHtml(summary, {
+      manualShops: [{ name: 'toyzzshop.bg', url: 'https://toyzzshop.bg/nastolni-igri', note: 'The shop blocks automatic checks (HTTP 403)' }],
+    });
+    expect(withManual).toContain(
+      '"manualShops":[{"name":"toyzzshop.bg","page":"https://toyzzshop.bg/nastolni-igri","note":"The shop blocks automatic checks (HTTP 403)"}]',
+    );
+    expect(withManual).toContain("'Check manually'");
+    expect(html).toContain('"manualShops":[]');
+  });
+
   it('works without any product', () => {
     expect(buildReportHtml({ ...summary, products: [] })).toContain('"products":[]');
   });
