@@ -9,7 +9,8 @@ export const POKEMON_RE = /pok[eé]mon|покемон/i;
 export const TCG_RE =
   /\btcg\b|trading card|booster|бустер|карти|картов|\bcards?\b|elite trainer|\betb\b|blister|\btin\b|collection|колекци|\bdeck\b|тесте|bundle/i;
 
-const OUT_OF_STOCK_RE = /изчерпан|няма наличност|не е наличен|не е в наличност|out of stock|sold out|unavailable/i;
+const OUT_OF_STOCK_RE =
+  /изчерпан|няма наличност|не е наличен|не е в наличност|не е на разположение|out of stock|sold out|unavailable/i;
 const IN_STOCK_RE = /в наличност|добави в количката|купи|add to cart|in stock/i;
 
 const PRICE_AFTER_RE = /(\d{1,3}(?:[  .]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(лв\.?|BGN|€|EUR)/i;
@@ -189,16 +190,41 @@ const OLD_PRICE_SELECTOR = 's, del, strike, [class*="old-price" i], [class*="old
 const OUT_OF_STOCK_CLASS_SELECTOR =
   '[class*="sold-out" i], [class*="soldout" i], [class*="out-of-stock" i], [class*="outofstock" i], [class*="unavailable" i]';
 
-const TITLE_SELECTORS = ['[itemprop="name"]', '.product-name', '.product-title', '.product-item-link', 'h2', 'h3', 'h4'];
+const TITLE_SELECTORS = ['[itemprop="name"]', '.product-name', '.product-title', '.product-item-link', 'h2', 'h3', 'h4', '.title'];
+
+/** Add-to-cart controls (read only as a stock signal; they are never used). */
+const BUY_CONTROL_SELECTOR =
+  'form[action*="/cart/add" i], [class*="add-to-cart" i], [class*="addtocart" i], [onclick*="cart/add" i], button[name="add"]';
+/** Cards that only lead to an options choice say nothing about stock. */
+const OPTIONS_TEXT_RE = /избер|опции|select options|choose options/i;
+/** Shopify (Dawn) product cards show a badge only when sold out, never an "in stock" label. */
+const SOLD_OUT_BADGE_CARD_SELECTOR = '.product-card-wrapper';
+
+/** 'enabled' / 'disabled' add-to-cart control in the card, or 'none'. */
+function buyControlIn(card: Cheerio<AnyNode>): 'enabled' | 'disabled' | 'none' {
+  const controls = card.find(BUY_CONTROL_SELECTOR);
+  if (controls.length === 0) return 'none';
+  const buttons = controls.filter('button, input[type=submit]').add(controls.find('button, input[type=submit]'));
+  if (buttons.length === 0) return 'enabled'; // a link or icon that adds to the cart
+  const usable = buttons.filter((_, b) => {
+    const attribs = 'attribs' in b ? b.attribs : {};
+    return attribs.disabled === undefined && attribs['aria-disabled'] !== 'true';
+  });
+  return usable.length > 0 ? 'enabled' : 'disabled';
+}
+
+/** A product from a page card, with what its add-to-cart control said (used for the page-wide rule). */
+type CardProduct = ExtractedProduct & { buyControl?: 'enabled' | 'disabled' | 'none'; optionsOnly?: boolean };
 
 /** Turns one product container into a product, or null when it does not look like one. */
-function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string): ExtractedProduct | null {
+function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string): CardProduct | null {
   // Work on a copy without scripts: shops embed JSON/JS inside cards, which would end up in titles.
   const card = original.clone();
   card.find('script, style, noscript, template').remove();
 
   const candidates: { url: string; text: string }[] = [];
-  card.find('a[href]').each((_, a) => {
+  // The card itself can be the product link (e.g. <a class="product-box"> on ozone.bg).
+  card.find('a[href]').addBack('a[href]').each((_, a) => {
     const el = $(a);
     const href = el.attr('href') ?? '';
     const url = resolveUrl(href, baseUrl);
@@ -230,11 +256,15 @@ function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string
   if (card.find(OUT_OF_STOCK_CLASS_SELECTOR).length > 0 || /sold-?out|out-of-stock/i.test(card.attr('data-status') ?? '')) {
     inStock = false;
   }
+  const buyControl = buyControlIn(card);
+  if (inStock === null && buyControl !== 'none') inStock = buyControl === 'enabled';
+  if (inStock === null && price) {
+    let wrapper = original.closest(SOLD_OUT_BADGE_CARD_SELECTOR);
+    if (wrapper.length === 0) wrapper = original.find(SOLD_OUT_BADGE_CARD_SELECTOR);
+    if (wrapper.length === 1) inStock = !OUT_OF_STOCK_RE.test(clean(wrapper.text()));
+  }
   // Skip containers that have neither a price nor a stock marker nor Pokémon in the name.
   if (!price && inStock === null && !POKEMON_RE.test(title)) return null;
-
-  const img = card.find('img').first();
-  const imgSrc = img.attr('src') || img.attr('data-src') || img.attr('data-lazy-src');
 
   return {
     title,
@@ -242,8 +272,29 @@ function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string
     price: price?.price ?? null,
     currency: price?.currency ?? null,
     inStock,
-    imageUrl: resolveUrl(imgSrc, baseUrl),
+    imageUrl: imageUrlOf(card.find('img').first(), baseUrl),
+    buyControl,
+    optionsOnly: OPTIONS_TEXT_RE.test(text),
   };
+}
+
+/** Attributes lazy-loading scripts use for the real image; `src` then holds only a placeholder. */
+const LAZY_IMG_ATTRS = ['data-src', 'data-lazy-src', 'data-original', 'data-lazy'];
+const SRCSET_ATTRS = ['data-srcset', 'srcset'];
+
+/** The real image of an <img>, skipping lazy-load placeholders such as 1×1 data: GIFs. */
+function imageUrlOf(img: Cheerio<AnyNode>, baseUrl: string): string | null {
+  const candidates = [
+    ...LAZY_IMG_ATTRS.map((a) => img.attr(a)),
+    img.attr('src'),
+    // "url 1x, url 2x" -> the first url
+    ...SRCSET_ATTRS.map((a) => img.attr(a)?.trim().split(/\s+/)[0].replace(/,$/, '')),
+  ];
+  for (const c of candidates) {
+    const url = resolveUrl(c, baseUrl);
+    if (url) return url;
+  }
+  return null;
 }
 
 /* ---------- Strategy 2: known product-card containers ---------- */
@@ -260,8 +311,8 @@ export const CARD_SELECTORS = [
   'article',
 ];
 
-function fromCards($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
-  const out: ExtractedProduct[] = [];
+function fromCards($: CheerioAPI, baseUrl: string): CardProduct[] {
+  const out: CardProduct[] = [];
   for (const selector of CARD_SELECTORS) {
     $(selector).each((_, el) => {
       if (!('name' in el) || el.name === 'body' || el.name === 'html') return;
@@ -335,11 +386,35 @@ export function findPriceCards($: CheerioAPI): AnyNode[] {
   return [...cards];
 }
 
-function fromPriceAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
-  const out: ExtractedProduct[] = [];
+/**
+ * Some shops keep the picture in a sibling of the block with name and price. Climbs a few levels
+ * for an image, but only while every link there still leads to this same product.
+ */
+function imageNear($: CheerioAPI, node: AnyNode, productUrl: string, baseUrl: string): string | null {
+  const samePage = pageKey(productUrl);
+  let current = node.parent;
+  for (let depth = 0; depth < 3 && current && 'name' in current && current.name !== 'body'; depth++) {
+    const el = $(current);
+    const others = el.find('a[href]').toArray().some((a) => {
+      const href = $(a).attr('href') ?? '';
+      const url = resolveUrl(href, baseUrl);
+      return url !== null && !BAD_HREF_RE.test(href) && pageKey(url) !== samePage;
+    });
+    if (others) return null;
+    const img = el.find('img').first();
+    if (img.length > 0) return imageUrlOf(img, baseUrl);
+    current = current.parent;
+  }
+  return null;
+}
+
+function fromPriceAnchors($: CheerioAPI, baseUrl: string): CardProduct[] {
+  const out: CardProduct[] = [];
   for (const card of findPriceCards($)) {
     const product = describeCard($, $(card), baseUrl);
-    if (product) out.push(product);
+    if (!product) continue;
+    product.imageUrl ??= imageNear($, card, product.url, baseUrl);
+    out.push(product);
   }
   return out;
 }
@@ -378,8 +453,8 @@ export function extractAll(
 ): { scanned: ExtractedProduct[]; matched: ExtractedProduct[] } {
   const $ = cheerio.load(html);
 
-  const merged = new Map<string, ExtractedProduct>();
-  const add = (p: ExtractedProduct) => {
+  const merged = new Map<string, CardProduct>();
+  const add = (p: CardProduct) => {
     const existing = merged.get(p.url);
     if (!existing) {
       merged.set(p.url, { ...p });
@@ -389,6 +464,8 @@ export function extractAll(
     existing.currency ??= p.currency;
     existing.inStock ??= p.inStock;
     existing.imageUrl ??= p.imageUrl;
+    if (!existing.buyControl || existing.buyControl === 'none') existing.buyControl = p.buyControl;
+    existing.optionsOnly ||= p.optionsOnly;
   };
 
   fromJsonLd($, baseUrl).forEach(add);
@@ -404,7 +481,16 @@ export function extractAll(
   }
   if (merged.size === 0 && opts.filterPokemon !== false) fromAnchors($, baseUrl).forEach(add);
 
-  const scanned = [...merged.values()];
+  // Shops such as ozone.bg show the add-to-cart control only on products that can be bought: when
+  // some cards on the page have one, a card without one (and without an options choice) is out of stock.
+  const cards = [...merged.values()];
+  if (cards.some((p) => p.buyControl === 'enabled')) {
+    for (const p of cards) {
+      if (p.inStock === null && p.buyControl === 'none' && !p.optionsOnly) p.inStock = false;
+    }
+  }
+
+  const scanned: ExtractedProduct[] = cards.map(({ buyControl: _b, optionsOnly: _o, ...p }) => p);
   // On a Pokémon TCG category page every product counts, so no keyword filter is applied.
   return { scanned, matched: opts.filterPokemon === false ? scanned : scanned.filter(isPokemonTcg) };
 }

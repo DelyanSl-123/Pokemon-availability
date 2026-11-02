@@ -173,3 +173,87 @@ export const MULTI_LINK_PRICE_BLOCKS_HTML = `
     <div class="price"><div class="price__regular"><span>20,00 €</span></div></div>
   </div></li>
 </ul></body></html>`;
+
+/**
+ * raiigrachky.bg: lazy-loaded images (src is a 1×1 data: placeholder, the real image is in data-src
+ * or data-srcset) in a block next to the one with name and price.
+ */
+export const LAZY_IMAGE_HTML = `
+<html><body><div class="c-listing c-listing--products">
+  <div class="c-listing__item"><div class="c-product-thumb" data-product-id="532357">
+    <div class="c-product-thumb__img-wrapper">
+      <a href="/pokemon-tcg-me04-chaos-rising-buster-paket-p532357" title="Pokémon TCG: ME04 Chaos Rising - Бустер Пакет"><img alt="Pokémon TCG: ME04 Chaos Rising - Бустер Пакет" class="c-img js-lazy" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-src="https://images.shop.test/thumb/products/5704a.jpg" data-srcset="https://images.shop.test/thumb/products/5704a.jpg 1x,https://images.shop.test/ret-thumb/products/5704a.jpg 2x"></a>
+      <div class="c-thumb-slider"><a href="https://shop.test/pokemon-tcg-me04-chaos-rising-buster-paket-p532357"><img alt="photo 2" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="></a></div>
+    </div>
+    <div class="c-product-thumb__details">
+      <div class="sc-wrapper"><a href="/pokemon-tcg-me04-chaos-rising-buster-paket-p532357" class="c-product-thumb__details__name">Pokémon TCG: ME04 Chaos Rising - Бустер Пакет</a></div>
+      <div class="sc-wrapper"><div class="c-price"><div class="c-price__actual"><span>6,88 €</span></div></div></div>
+    </div>
+    <div class="c-product-thumb__actions"><button class="c-wishlist-popup__trigger"></button></div>
+  </div></div>
+  <div class="c-listing__item"><div class="c-product-thumb" data-product-id="474841">
+    <div class="c-product-thumb__img-wrapper">
+      <a href="/pokemon-tcg-elite-trainer-box-p474841" title="Pokémon TCG: Elite Trainer Box"><img alt="Pokémon TCG: Elite Trainer Box" class="c-img js-lazy" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="/thumb/products/etb.jpg 1x, /ret-thumb/products/etb.jpg 2x"></a>
+      <div class="c-thumb-slider"><a href="https://shop.test/pokemon-tcg-elite-trainer-box-p474841"><img alt="photo 2" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="></a></div>
+    </div>
+    <div class="c-product-thumb__details">
+      <div class="sc-wrapper"><a href="/pokemon-tcg-elite-trainer-box-p474841" class="c-product-thumb__details__name">Pokémon TCG: Elite Trainer Box</a></div>
+      <div class="sc-wrapper"><div class="c-price"><div class="c-price__actual"><span>97,55 €</span></div></div></div>
+    </div>
+    <div class="c-product-thumb__actions"><button class="c-wishlist-popup__trigger"></button></div>
+  </div></div>
+</div></body></html>`;
+
+/** ozone.bg (Magento): only products that can be bought have the cart icon; no stock text at all. */
+export const CART_ICON_ONLY_HTML = `
+<html><body><div class="category-products">
+  <a class="product-box" href="https://shop.test/product/pokemon-tcg-latias-ex-box/">
+    <span class="rating-and-wishlist">
+      <span class="icon-link add-to-cart product_cart_1" onclick="document.location.href='https://shop.test/checkout/cart/add/product/1/'; return false" title="Купи"></span>
+    </span>
+    <span class="title">Pokemon TCG: October 2025, Latias ex Box</span>
+    <div class="price-box"><span class="price">29,90 €</span></div>
+  </a>
+  <a class="product-box" href="https://shop.test/product/pokemon-tcg-30th-celebration-booster-bundle/">
+    <span class="rating-and-wishlist"><span class="icon-link add-to-wishlist"></span></span>
+    <span class="title">Pokemon TCG: 30th Celebration Booster Bundle (6 packs)</span>
+    <div class="price-box"><span class="price">74,90 €</span></div>
+  </a>
+</div></body></html>`;
+
+/** kamatogames.com (Shopify Dawn): no stock text; a badge appears only on sold-out cards. */
+export const SOLD_OUT_BADGE_HTML = `
+<html><body><ul id="product-grid">
+  <li class="grid__item"><div class="card-wrapper product-card-wrapper">
+    <div class="card__content"><div class="card__information">
+      <span class="card__heading"><a href="/products/pokemon-tcg-30th-celebration-2-pack-blister">Pokémon TCG: 30th Celebration 2-Pack Blister</a></span>
+      <div class="price"><span class="price-item">€32,00</span></div>
+    </div><div class="card__badge top left"></div></div>
+  </div></li>
+  <li class="grid__item"><div class="card-wrapper product-card-wrapper">
+    <div class="card__content"><div class="card__information">
+      <span class="card__heading"><a href="/products/pokemon-tcg-151-booster-bundle">Pokémon TCG: 151 Booster Bundle</a></span>
+      <div class="price"><span class="price-item">€45,00</span></div>
+    </div><div class="card__badge bottom left"><span class="badge">Изчерпано</span></div></div>
+  </div></li>
+</ul></body></html>`;
+
+/** itcg.bg (Shopify Horizon): quick-add buttons labelled only "Добави"; disabled when sold out. */
+export const QUICK_ADD_HTML = `
+<html><body><ul class="product-grid">
+  <li><div class="product-card">
+    <a href="/products/pokemon-tcg-30th-celebration-etb">Pokémon TCG: 30th Celebration Elite Trainer Box</a>
+    <span class="price">€89,90</span>
+    <form action="/cart/add" data-type="add-to-cart-form"><button class="button quick-add__button add-to-cart-button">Добави</button></form>
+  </div></li>
+  <li><div class="product-card">
+    <a href="/products/pokemon-tcg-m6-booster-display">Pokémon TCG: M6 Booster Display</a>
+    <span class="price">€139,90</span>
+    <form action="/cart/add" data-type="add-to-cart-form"><button class="button quick-add__button add-to-cart-button" disabled>Добави</button></form>
+  </div></li>
+  <li><div class="product-card">
+    <a href="/products/pokemon-tcg-sleeves">Pokémon TCG: Card Sleeves</a>
+    <span class="price">€9,90</span>
+    <a href="/products/pokemon-tcg-sleeves" class="button">Изберете опции</a>
+  </div></li>
+</ul></body></html>`;
