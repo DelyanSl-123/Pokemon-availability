@@ -34,7 +34,6 @@
     "url": "https://toyzzshop.bg",
     "name": "toyzzshop.bg",
     "searchUrl": "https://toyzzshop.bg/catalogsearch/result/?q=Pokemon+tcg",
-    "manual": true,
-    "note": "The shop blocks automatic checks (HTTP 403)"
+    "manual": true
   }
 ]
