@@ -230,14 +230,15 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
   .cmp tr:last-child td, .cmp tr:last-child th { border-bottom:0; }
   .cmp th[scope=row], .cmp-corner { position:sticky; left:0; z-index:1; width:130px; border-left:0; background:var(--surface); color:var(--muted); font-size:.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .cmp-product { border-top:4px solid var(--shop); }
-  .cmp-pic { aspect-ratio:1; max-width:200px; border-radius:10px; background:var(--img); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; margin-bottom:10px; }
+  .cmp-pic { position:relative; aspect-ratio:1; max-width:200px; border-radius:10px; background:var(--img); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; margin-bottom:10px; }
   .cmp-pic img { width:100%; height:100%; object-fit:contain; padding:10px; }
   .cmp-pic .none svg { width:40%; }
   .cmp-name { display:block; color:var(--text); font-size:.92rem; font-weight:650; line-height:1.35; text-decoration:none; }
   a.cmp-name:hover { color:var(--accent); text-decoration:underline; }
-  .cmp-remove { margin-top:8px; padding:0; border:0; background:none; color:var(--muted); font:inherit; font-size:.78rem; font-weight:600; cursor:pointer; text-decoration:underline; }
-  .cmp-remove:hover:not(:disabled) { color:var(--bad); }
-  .cmp-remove:disabled { opacity:.4; cursor:not-allowed; text-decoration:none; }
+  .cmp-remove { position:absolute; top:6px; right:6px; width:30px; height:30px; padding:0; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; background:#fff; color:#151922; font:700 18px/1 system-ui, sans-serif; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.15); transition:background .15s, color .15s, border-color .15s; }
+  .cmp-remove:hover:not(:disabled) { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .cmp-remove:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .cmp-remove:disabled { opacity:.35; cursor:not-allowed; box-shadow:none; }
   .cmp-price { font-size:1.25rem; font-weight:800; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
   .cmp-best { display:inline-block; margin-top:4px; padding:2px 8px; border-radius:999px; font-size:.7rem; font-weight:700; color:var(--ok); background:var(--ok-bg); }
   .cmp-shop { display:inline-flex; align-items:center; gap:8px; font-weight:650; }
@@ -528,21 +529,23 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
       var th = el('th', 'cmp-product');
       th.scope = 'col';
       th.style.setProperty('--shop', shopColor(p.shop));
-      th.appendChild(picture(p, 'cmp-pic'));
-      var link = safeUrl(p.url);
-      var name = el(link ? 'a' : 'span', 'cmp-name', p.title);
-      if (link) { name.href = link; name.target = '_blank'; name.rel = 'noreferrer'; }
-      th.appendChild(name);
-      var rm = el('button', 'cmp-remove', 'Remove');
+      var pic = picture(p, 'cmp-pic');
+      var rm = el('button', 'cmp-remove', '×');
       rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + p.title + ' from the comparison');
       // a comparison needs at least MIN_PICK products
       rm.disabled = items.length <= MIN_PICK;
-      if (rm.disabled) rm.title = 'A comparison needs at least ' + MIN_PICK + ' products';
+      rm.title = rm.disabled ? 'A comparison needs at least ' + MIN_PICK + ' products' : 'Remove from comparison';
       rm.addEventListener('click', function () {
         setPicked(list[n], false);
         openCompare(picked, true);
       });
-      th.appendChild(rm);
+      pic.appendChild(rm);
+      th.appendChild(pic);
+      var link = safeUrl(p.url);
+      var name = el(link ? 'a' : 'span', 'cmp-name', p.title);
+      if (link) { name.href = link; name.target = '_blank'; name.rel = 'noreferrer'; }
+      th.appendChild(name);
       head.appendChild(th);
     });
     var thead = el('thead');
