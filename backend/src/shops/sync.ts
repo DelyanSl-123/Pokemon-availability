@@ -8,11 +8,26 @@ export interface ShopEntry {
   name?: string;
   searchUrl?: string;
   enabled?: boolean;
+  /** Never fetched (e.g. the shop blocks the tracker); the report links to it to check by hand. */
+  manual?: boolean;
+  /** Why the shop has to be checked by hand, shown in the report. */
+  note?: string;
 }
 
-/** Makes the database match the shops file (adds, updates and removes shops). */
+/** A shop the report lists with a link only, because it cannot be checked automatically. */
+export interface ManualShop {
+  name: string;
+  url: string;
+  note: string;
+}
+
+function readEntries(file: string): ShopEntry[] {
+  return JSON.parse(fs.readFileSync(file, 'utf8')) as ShopEntry[];
+}
+
+/** Makes the database match the shops file (adds, updates and removes shops). Manual shops are left out. */
 export function syncShops(db: DB, file: string): void {
-  const entries = JSON.parse(fs.readFileSync(file, 'utf8')) as ShopEntry[];
+  const entries = readEntries(file).filter((e) => !e.manual);
 
   const wanted = new Map<string, { shop: ReturnType<typeof normalizeShopInput>; enabled: boolean }>();
   for (const entry of entries) {
@@ -33,4 +48,16 @@ export function syncShops(db: DB, file: string): void {
       if (!enabled) updateShop(db, created.id, { enabled: false });
     }
   }
+}
+
+/** The shops file's manual entries (enabled ones only), linking to their listing page when given. */
+export function readManualShops(file: string): ManualShop[] {
+  if (!fs.existsSync(file)) return [];
+  return readEntries(file)
+    .filter((e) => e.manual && e.enabled !== false)
+    .map((e) => {
+      const shop = normalizeShopInput({ url: e.url, name: e.name });
+      const page = e.searchUrl && !e.searchUrl.includes('{query}') ? e.searchUrl : shop.baseUrl;
+      return { name: shop.name, url: page, note: e.note?.trim() ?? '' };
+    });
 }

@@ -10,7 +10,7 @@ import { createService } from './core/service';
 import { openDb } from './db/connection';
 import { mailConfigFromEnv } from './mail/mailer';
 import { writeReport } from './report/write';
-import { syncShops } from './shops/sync';
+import { readManualShops, syncShops } from './shops/sync';
 import type { Settings } from './types';
 
 function openInBrowser(file: string): void {
@@ -44,6 +44,7 @@ async function main() {
   // Locally the sign-in icon points at the web app on this PC unless APP_URL says otherwise.
   const written = writeReport(summary, reportFile, {
     appUrl: process.env.APP_URL || `http://127.0.0.1:${process.env.PORT ?? 3001}`,
+    manualShops: readManualShops(shopsFile),
   });
   for (const s of summary.shops) {
     const detail = s.status === 'ok' ? `${s.found} found` : `${s.status}: ${s.message ?? ''}`;

@@ -29,5 +29,11 @@
     "url": "https://itcg.bg",
     "name": "itcg.bg",
     "searchUrl": "https://itcg.bg/collections/pokemon-tcg"
+  },
+  {
+    "url": "https://toyzzshop.bg",
+    "name": "toyzzshop.bg",
+    "searchUrl": "https://toyzzshop.bg/catalogsearch/result/?q=Pokemon+tcg",
+    "manual": true
   }
 ]

@@ -40,7 +40,7 @@ npm install        # first time only
 npm run report     # checks every shop (no email) and opens report/report.html in your browser
 ```
 
-`backend/report/report.html` is a single self-contained file, branded **CollectibleMarket** (logo in `assets/collectiblemarket-logo.svg`, also built into the page and used as its tab icon): product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop, with a link to each shop's search page when grouped by shop. It adapts to phone widths and dark mode. It needs no server to open (product images load from the shops' sites).
+`backend/report/report.html` is a single self-contained file, branded **CollectibleMarket** (logo in `assets/collectiblemarket-logo.svg`, also built into the page and used as its tab icon): product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop, with a link to each shop's search page when grouped by shop. Tick **Compare** on 2 to 5 products and press **Compare** in the bar at the bottom to see them side by side (price and difference to the cheapest, stock, shop, flags) on a comparison page at `report.html#compare/…`; that link can be bookmarked or shared, and the choice is remembered in the browser. It adapts to phone widths and dark mode. It needs no server to open (product images load from the shops' sites).
 
 The daily GitHub run publishes the same page to **GitHub Pages** at `https://<your-user>.github.io/<repo>/`, always showing the latest run. One-time setup: in the repository go to **Settings → Pages** and set **Source** to **GitHub Actions** (GitHub Pages needs a public repository or a paid plan, and the published page is public). The file is also attached to each run as the **pokemon-report** artifact at the bottom of the run page in the **Actions** tab.
 
@@ -102,6 +102,8 @@ Each digest lists, per shop: the product, price, stock state and link, with `NEW
 Use the **Shops** table in the UI (or `POST /api/shops`). Type just `www.example.bg`; the search URL defaults to `https://www.example.bg/search?q={query}`. If a shop uses a different search URL, edit it in the table, `{query}` is replaced with the search phrase (default `pokemon tcg`, editable under settings).
 
 A shop can also be a fixed category/listing page: give a `searchUrl` **without** `{query}` (e.g. the Pokemon Center UK page `https://www.pokemoncenter.com/en-gb/category/tcg-cards`). Every product on such a page is treated as a match. Out-of-stock products are labelled `[OUT OF STOCK]` in the email and sorted last. Note that pokemoncenter.com loads products with JavaScript and may block bots, so it can show up as `blocked` or `0 found`.
+
+A shop that blocks the tracker (e.g. toyzzshop.bg, whose Cloudflare protection answers with HTTP 403) can be kept on the list with `"manual": true` and an optional `"note"`. It is never fetched or stored in the database; the HTML report shows it in the Shops row as **Check manually ↗**, linking to its `searchUrl` (or home page), so it can be checked by hand.
 
 Built-in presets (unverified, edit them if a search returns nothing):
 

@@ -9,7 +9,7 @@ import { openDb } from './db/connection';
 import { mailConfigFromEnv } from './mail/mailer';
 import { createService } from './core/service';
 import { writeReport } from './report/write';
-import { syncShops } from './shops/sync';
+import { readManualShops, syncShops } from './shops/sync';
 import type { Settings } from './types';
 
 async function main() {
@@ -45,7 +45,7 @@ async function main() {
   // HTML report of everything found; the workflow publishes it to GitHub Pages and uploads it as a file.
   const reportFile = process.env.REPORT_FILE ?? path.resolve(process.cwd(), 'report', 'report.html');
   // APP_URL: address of the web app; adds a sign-in / register icon to the report header.
-  writeReport(summary, reportFile, { appUrl: process.env.APP_URL });
+  writeReport(summary, reportFile, { appUrl: process.env.APP_URL, manualShops: readManualShops(shopsFile) });
   console.log(`Report written to ${reportFile}`);
 
   // One notice per shop explaining what its page contained (shown on the workflow run page).
