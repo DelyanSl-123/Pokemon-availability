@@ -72,6 +72,13 @@ describe('buildReportHtml', () => {
     expect(html).toContain('pic.appendChild(noImage())');
   });
 
+  it('lets up to five products be picked and compared on their own page', () => {
+    expect(html).toContain('var MAX_PICK = 5;');
+    expect(html).toContain('id="compare-view" hidden');
+    expect(html).toContain('id="cmpbar" hidden');
+    expect(html).toContain("'#compare/'");
+  });
+
   it('works without any product', () => {
     expect(buildReportHtml({ ...summary, products: [] })).toContain('"products":[]');
   });
