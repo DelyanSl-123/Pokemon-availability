@@ -72,7 +72,8 @@ describe('buildReportHtml', () => {
     expect(html).toContain('pic.appendChild(noImage())');
   });
 
-  it('lets up to five products be picked and compared on their own page', () => {
+  it('lets two to five products be picked and compared on their own page', () => {
+    expect(html).toContain('var MIN_PICK = 2;');
     expect(html).toContain('var MAX_PICK = 5;');
     expect(html).toContain('id="compare-view" hidden');
     expect(html).toContain('id="cmpbar" hidden');

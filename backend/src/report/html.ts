@@ -236,7 +236,8 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
   .cmp-name { display:block; color:var(--text); font-size:.92rem; font-weight:650; line-height:1.35; text-decoration:none; }
   a.cmp-name:hover { color:var(--accent); text-decoration:underline; }
   .cmp-remove { margin-top:8px; padding:0; border:0; background:none; color:var(--muted); font:inherit; font-size:.78rem; font-weight:600; cursor:pointer; text-decoration:underline; }
-  .cmp-remove:hover { color:var(--bad); }
+  .cmp-remove:hover:not(:disabled) { color:var(--bad); }
+  .cmp-remove:disabled { opacity:.4; cursor:not-allowed; text-decoration:none; }
   .cmp-price { font-size:1.25rem; font-weight:800; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
   .cmp-best { display:inline-block; margin-top:4px; padding:2px 8px; border-radius:999px; font-size:.7rem; font-weight:700; color:var(--ok); background:var(--ok-bg); }
   .cmp-shop { display:inline-flex; align-items:center; gap:8px; font-weight:650; }
@@ -403,6 +404,7 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
   }
 
   /* ---------- comparison: up to MAX_PICK products, chosen with the checkbox on each card ---------- */
+  var MIN_PICK = 2;
   var MAX_PICK = 5;
   var STORE_KEY = 'cm-compare';
   var picked = []; // indexes into products, in the order they were chosen
@@ -493,19 +495,21 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
       thumbs.appendChild(t);
     });
     $('cmp-count').textContent = picked.length + ' of ' + MAX_PICK + ' selected';
-    $('cmp-hint').textContent = picked.length < 2 ? 'Pick at least 2 to compare' : full ? 'Maximum reached' : '';
-    $('cmp-go').disabled = picked.length < 2;
+    $('cmp-hint').textContent = picked.length < MIN_PICK
+      ? 'Pick at least ' + MIN_PICK + ' to compare (up to ' + MAX_PICK + ')'
+      : full ? 'Maximum reached' : 'You can add ' + (MAX_PICK - picked.length) + ' more';
+    $('cmp-go').disabled = picked.length < MIN_PICK;
   }
 
   /** The comparison page: one column per chosen product, opened at #compare/<indexes>. */
   function renderCompare(list) {
     var out = $('compare-body');
     out.textContent = '';
-    $('compare-count').textContent = list.length ? list.length + ' products' : '';
-    if (list.length === 0) {
+    $('compare-count').textContent = list.length >= MIN_PICK ? list.length + ' products' : '';
+    if (list.length < MIN_PICK) {
       var empty = el('div', 'sub empty');
-      empty.appendChild(el('b', '', 'Nothing to compare.'));
-      empty.appendChild(document.createTextNode('Tick “Compare” on up to ' + MAX_PICK + ' products, then open the comparison.'));
+      empty.appendChild(el('b', '', 'Not enough products to compare.'));
+      empty.appendChild(document.createTextNode('Tick “Compare” on ' + MIN_PICK + ' to ' + MAX_PICK + ' products, then open the comparison.'));
       out.appendChild(empty);
       return;
     }
@@ -531,6 +535,9 @@ export function buildReportHtml(summary: RunSummary, opts: { appUrl?: string } =
       th.appendChild(name);
       var rm = el('button', 'cmp-remove', 'Remove');
       rm.type = 'button';
+      // a comparison needs at least MIN_PICK products
+      rm.disabled = items.length <= MIN_PICK;
+      if (rm.disabled) rm.title = 'A comparison needs at least ' + MIN_PICK + ' products';
       rm.addEventListener('click', function () {
         setPicked(list[n], false);
         openCompare(picked, true);
