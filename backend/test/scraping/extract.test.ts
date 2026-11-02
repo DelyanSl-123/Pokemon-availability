@@ -3,15 +3,19 @@ import { extractAll, extractProducts, findPrice, isPokemonTcg, parseNumber } fro
 import {
   ANCHORS_ONLY_HTML,
   CARDS_HTML,
+  CART_ICON_ONLY_HTML,
   DIV_SOUP_HTML,
   JSON_LD_HTML,
   JSON_LD_SAME_URL_HTML,
+  LAZY_IMAGE_HTML,
   MANY_LINKS_HTML,
   MULTI_LINK_PRICE_BLOCKS_HTML,
   OLD_PRICE_HTML,
   OTHER_CARDS_HTML,
+  QUICK_ADD_HTML,
   SCRIPT_IN_TITLE_HTML,
   SHOPIFY_LIKE_HTML,
+  SOLD_OUT_BADGE_HTML,
   TITLE_WITH_THEME_HTML,
 } from '../fixtures/html';
 
@@ -187,6 +191,40 @@ describe('extractProducts', () => {
   it('trims appended attribute lines such as "Тема: ..." from titles', () => {
     const [product] = extractProducts(TITLE_WITH_THEME_HTML, base, { filterPokemon: false });
     expect(product.title).toBe('Pokemon TCG: 30th Celebration Mini Tin, асортимент');
+  });
+
+  it('reads lazy-loaded images instead of their data: placeholder', () => {
+    const products = extractProducts(LAZY_IMAGE_HTML, 'https://shop.test/pokemon');
+    expect(products.map((p) => p.imageUrl)).toEqual([
+      'https://images.shop.test/thumb/products/5704a.jpg',
+      'https://shop.test/thumb/products/etb.jpg',
+    ]);
+  });
+
+  it('reads "currently unavailable" (не е на разположение) as out of stock', () => {
+    const html = LAZY_IMAGE_HTML.replace(
+      '<div class="c-price">',
+      '<div class="c-product-thumb__details__availability">В момента не е на разположение (При вас 09.11.)</div><div class="c-price">',
+    );
+    expect(extractProducts(html, 'https://shop.test/pokemon')[0].inStock).toBe(false);
+  });
+
+  it('reads stock from the cart icon when only buyable products have one', () => {
+    const products = extractProducts(CART_ICON_ONLY_HTML, 'https://shop.test/pokemon/');
+    expect(products.map((p) => [p.title, p.inStock])).toEqual([
+      ['Pokemon TCG: October 2025, Latias ex Box', true],
+      ['Pokemon TCG: 30th Celebration Booster Bundle (6 packs)', false],
+    ]);
+  });
+
+  it('treats Shopify cards without a sold-out badge as in stock', () => {
+    const products = extractProducts(SOLD_OUT_BADGE_HTML, 'https://shop.test/collections/pokemon');
+    expect(products.map((p) => p.inStock)).toEqual([true, false]);
+  });
+
+  it('reads stock from enabled and disabled quick-add buttons, and leaves options-only cards unknown', () => {
+    const products = extractProducts(QUICK_ADD_HTML, 'https://shop.test/collections/pokemon-tcg', { filterPokemon: false });
+    expect(products.map((p) => p.inStock)).toEqual([true, false, null]);
   });
 
   it('returns an empty list for a page without products', () => {

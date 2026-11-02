@@ -42,7 +42,7 @@ describe('buildReportHtml', () => {
     expect(html).toContain('Pokemon TCG Booster');
     expect(html).toContain('https://www.ozone.bg/p/2');
     expect(html).toContain('"inStock":false');
-    expect(html).toContain('OUT OF STOCK');
+    expect(html).toContain('Out of stock');
   });
 
   it('includes the status of shops that could not be checked', () => {
@@ -65,6 +65,11 @@ describe('buildReportHtml', () => {
     expect(linked).toContain('<a class="account" href="https://app.example.com/"');
     expect(buildReportHtml(summary, { appUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
     expect(buildReportHtml(summary, { appUrl: 'https://x.test/"><script>' })).not.toContain('"><script>');
+  });
+
+  it('has a Poké Ball placeholder for products without an image', () => {
+    expect(html).toContain('function noImage()');
+    expect(html).toContain('pic.appendChild(noImage())');
   });
 
   it('works without any product', () => {
