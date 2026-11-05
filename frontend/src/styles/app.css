@@ -346,3 +346,41 @@ button.danger {
   border-color: var(--bad);
   background: transparent;
 }
+
+.game-menu {
+  margin: 14px 0 4px;
+}
+.game-menu .tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.game-menu .tab {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 650;
+  cursor: pointer;
+}
+.game-menu .tab:hover {
+  border-color: var(--muted);
+}
+.game-menu .tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.game-menu .tab.add {
+  border-style: dashed;
+  color: var(--muted);
+  font-weight: 500;
+}
+.game-menu .manage {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
