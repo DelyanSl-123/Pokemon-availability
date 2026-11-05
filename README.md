@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/collectible-market-logo.svg" alt="Collectible Market Availability" width="360"></p>
+
 # Pokémon TCG Tracker
 
 Checks a list of web shops once a day for Pokémon TCG products and emails you what it found and on which page. **Search only, it never buys anything.**
@@ -40,7 +42,7 @@ npm install        # first time only
 npm run report     # checks every shop (no email) and opens report/report.html in your browser
 ```
 
-`backend/report/report.html` is a single self-contained file, branded **CollectibleMarket** (logo in `assets/collectiblemarket-logo.svg`, also built into the page and used as its tab icon): product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop, with a link to each shop's search page when grouped by shop. Tick **Compare** on 2 to 5 products and press **Compare** in the bar at the bottom to see them side by side (price and difference to the cheapest, stock, shop, flags) on a comparison page at `report.html#compare/…`; that link can be bookmarked or shared, and the choice is remembered in the browser. It adapts to phone widths and dark mode. It needs no server to open (product images load from the shops' sites).
+`backend/report/report.html` is a single self-contained file, branded **CollectibleMarket** (logo in `assets/collectible-market-logo.svg`, also built into the page; the round “CM” mark `assets/collectible-market-icon.svg` is its tab icon. The previous logo is kept in `assets/collectiblemarket-logo.svg`): product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop, with a link to each shop's search page when grouped by shop. Tick **Compare** on 2 to 5 products and press **Compare** in the bar at the bottom to see them side by side (price and difference to the cheapest, stock, shop, flags) on a comparison page at `report.html#compare/…`; that link can be bookmarked or shared, and the choice is remembered in the browser. It adapts to phone widths and dark mode. It needs no server to open (product images load from the shops' sites).
 
 The daily GitHub run publishes the same page to **GitHub Pages** at `https://<your-user>.github.io/<repo>/`, always showing the latest run. One-time setup: in the repository go to **Settings → Pages** and set **Source** to **GitHub Actions** (GitHub Pages needs a public repository or a paid plan, and the published page is public). The file is also attached to each run as the **pokemon-report** artifact at the bottom of the run page in the **Actions** tab.
 

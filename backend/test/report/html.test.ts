@@ -39,6 +39,7 @@ describe('buildReportHtml', () => {
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('<title>CollectibleMarket');
     expect(html).toContain('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,');
+    expect(html).toContain('aria-label="Collectible Market Availability"');
     expect(html).toContain('Pokemon TCG Booster');
     expect(html).toContain('https://www.ozone.bg/p/2');
     expect(html).toContain('"inStock":false');

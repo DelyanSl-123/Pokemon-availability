@@ -10,16 +10,25 @@ function safeJson(value: unknown): string {
     .split(String.fromCharCode(0x2029)).join('\\u2029');
 }
 
-/** CollectibleMarket logo: two stacked trading cards with a sparkle. Used in the header and as favicon. */
+/**
+ * Collectible Market logo (full lockup) shown in the report header. The previous logo (two stacked
+ * cards with a sparkle) is kept in assets/collectiblemarket-logo.svg.
+ */
 export const LOGO_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CollectibleMarket">' +
-  '<defs><linearGradient id="cm-g" x1="0" y1="0" x2="1" y2="1">' +
-  '<stop offset="0" stop-color="#ff6a3d"/><stop offset="1" stop-color="#c81e0a"/></linearGradient></defs>' +
-  '<rect x="9" y="13" width="30" height="42" rx="5" fill="#2b3a4f" stroke="#fff" stroke-width="2" transform="rotate(-12 24 34)"/>' +
-  '<g transform="rotate(10 39 30)">' +
-  '<rect x="24" y="9" width="30" height="42" rx="5" fill="url(#cm-g)" stroke="#fff" stroke-width="2"/>' +
-  '<path d="M39 19.5 41.6 27.4 49.5 30 41.6 32.6 39 40.5 36.4 32.6 28.5 30 36.4 27.4Z" fill="#fff"/>' +
-  '</g></svg>';
+  '<svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 240" role="img" aria-label="Collectible Market Availability">' +
+  '<rect width="600" height="240" fill="#F8FAFC"/>' +
+  '<rect x="48" y="48" width="144" height="144" rx="72" fill="#0F172A"/>' +
+  '<text x="120" y="142" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" text-anchor="middle" fill="#FACC15">CM</text>' +
+  '<text x="222" y="120" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700" fill="#0F172A">Collectible Market</text>' +
+  '<text x="222" y="158" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="400" letter-spacing="4" fill="#64748B">AVAILABILITY</text>' +
+  '</svg>';
+
+/** The round "CM" mark on its own, used as the browser tab icon. */
+export const ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="48 48 144 144" width="144" height="144">' +
+  '<rect x="48" y="48" width="144" height="144" rx="72" fill="#0F172A"/>' +
+  '<text x="120" y="142" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="800" text-anchor="middle" fill="#FACC15">CM</text>' +
+  '</svg>';
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -78,7 +87,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>CollectibleMarket · ${esc(when)}</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(ICON_SVG)}">
 <style>
   :root {
     --bg:#f4f1ea; --surface:#fff; --text:#191c22; --muted:#686e7a; --line:#e3ddd1; --accent:#e3350d;
@@ -103,7 +112,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .hero { background:var(--hero); color:var(--hero-text); position:relative; padding:22px 0 26px; }
   .hero::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--holo); }
   .brand { display:flex; align-items:center; gap:14px; }
-  .brand svg { width:52px; height:52px; flex:none; filter:drop-shadow(0 4px 10px rgba(227,53,13,.35)); }
+  .brand > .logo { height:64px; width:auto; flex:none; border-radius:12px; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   h1 { margin:0; font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
   h1 span { color:#ff6a3d; }
   .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
@@ -267,7 +277,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   <div class="wrap">
     <div class="brand">
       ${LOGO_SVG}
-      <div><h1>Collectible<span>Market</span></h1><div class="tagline">Pokémon TCG availability tracker</div></div>
+      <div><h1 class="sr-only">Collectible Market</h1><div class="tagline">Pokémon TCG availability tracker</div></div>
       ${accountLink}
     </div>
     <p class="meta">Checked <b>${esc(when)}</b> (Sofia time) · search phrase <b>“${esc(summary.query)}”</b></p>
