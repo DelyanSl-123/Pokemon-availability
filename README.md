@@ -78,6 +78,8 @@ The web UI needs a sign-in. There are two roles:
 
 Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. On every start the backend creates that account (or updates its password) and makes it the only admin. Registering can never create an admin, and nobody can register with the admin's email. Passwords are stored as salted scrypt hashes; sign-in uses an HttpOnly session cookie valid for 30 days. If you serve the app over HTTPS, set `COOKIE_SECURE=true`.
 
+The registration form also asks for first name, last name, city and address (required) and a phone number (optional), plus a required checkbox to accept the Terms and Conditions (the time is stored with the account). The terms page is a placeholder, `frontend/public/terms.html`: write your text there; they are stored with the account in the SQLite database and returned only to that signed-in user.
+
 New passwords (registration) must have at least 10 characters, a lowercase letter, an uppercase letter, a digit and a special character, no spaces, no character repeated 3 times in a row, not contain the email name and not be a common password; the form asks to type the password twice and shows which rules are met. The server enforces the same rules (`backend/src/auth/password-rules.ts`; the form uses a copy in `frontend/src/utils/password.ts`). Existing accounts and the admin password from `ADMIN_PASSWORD` are not checked against them, so use a strong one there too.
 
 Only people who can reach the backend can register, so others can only sign up if you host it somewhere public. The GitHub Pages report is separate and has no sign-in.

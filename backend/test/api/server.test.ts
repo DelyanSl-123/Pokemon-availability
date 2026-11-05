@@ -4,6 +4,7 @@ import { ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
 import { buildServer } from '../../src/api/server';
 
+const PROFILE = { firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', acceptTerms: true };
 const ADMIN = { email: 'admin@test.com', password: 'admin-password' };
 
 async function setup() {
@@ -12,7 +13,7 @@ async function setup() {
   const scheduler = { start: vi.fn(), stop: vi.fn() };
   const service = { isRunning: () => false, run: vi.fn() };
   const defaults = { cron: '0 9 * * *', query: 'pokemon tcg' };
-  const app = await buildServer({ db, service: service as never, scheduler, defaults });
+  const app = await buildServer({ db, service: service as never, scheduler, defaults, security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
   return { app, scheduler, service };
 }
 
@@ -99,7 +100,7 @@ describe('API accounts', () => {
     const reg = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: ' Viewer@Test.com ', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x' },
+      payload: { email: ' Viewer@Test.com ', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x', ...PROFILE },
     });
     expect(reg.statusCode).toBe(201);
     expect(reg.json().user).toMatchObject({ email: 'viewer@test.com', role: 'user' });
@@ -126,7 +127,7 @@ describe('API accounts', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: 'ADMIN@test.com', password: 'Something-Else#9', confirmPassword: 'Something-Else#9' },
+      payload: { email: 'ADMIN@test.com', password: 'Something-Else#9', confirmPassword: 'Something-Else#9', ...PROFILE },
     });
     expect(res.statusCode).toBe(409);
     const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers: await signIn(app) });
@@ -136,16 +137,28 @@ describe('API accounts', () => {
   it('validates registration input', async () => {
     const { app } = await setup();
     const reg = (payload: object) => app.inject({ method: 'POST', url: '/api/auth/register', payload });
-    const good = { email: 'a@test.com', password: 'Str0ng-Passw0rd!', confirmPassword: 'Str0ng-Passw0rd!' };
+    const good = { email: 'a@test.com', password: 'Str0ng-Passw0rd!', confirmPassword: 'Str0ng-Passw0rd!', ...PROFILE };
     expect((await reg({ ...good, email: 'nope' })).statusCode).toBe(400);
     for (const password of ['Sh0rt!a', 'alllowercase1!', 'ALLUPPERCASE1!', 'NoDigitsHere!!', 'NoSpecial1234x', 'Has Space-1234x']) {
       expect((await reg({ ...good, password, confirmPassword: password })).statusCode, password).toBe(400);
     }
+    expect((await reg({ ...good, acceptTerms: false })).statusCode).toBe(400);
+    const { acceptTerms: _omit, ...withoutTerms } = good;
+    expect((await reg(withoutTerms)).statusCode).toBe(400);
     const mismatch = await reg({ ...good, confirmPassword: 'Str0ng-Passw0rd?' });
     expect(mismatch.statusCode).toBe(400);
     expect(mismatch.json().error).toContain('do not match');
     expect((await reg({ email: good.email, password: good.password })).statusCode).toBe(400);
-    expect((await reg(good)).statusCode).toBe(201);
+    for (const missing of ['firstName', 'lastName', 'city', 'address']) {
+      expect((await reg({ ...good, [missing]: '  ' })).statusCode, missing).toBe(400);
+    }
+    expect((await reg({ ...good, phone: 'abc' })).statusCode).toBe(400);
+    const ok = await reg({ ...good, phone: '+359 88 123 4567' });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().user).toMatchObject({ firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', phone: '+359 88 123 4567' });
+    const noPhone = await reg({ ...good, email: 'b@test.com' });
+    expect(noPhone.statusCode).toBe(201);
+    expect(noPhone.json().user.phone).toBeNull();
   });
 
   it('rejects a wrong password and ends the session on logout', async () => {

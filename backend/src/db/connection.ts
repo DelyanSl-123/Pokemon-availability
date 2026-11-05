@@ -61,5 +61,11 @@ export function openDb(file: string): DB {
       expires_at TEXT NOT NULL
     );
   `);
+
+  // Databases created before the profile fields existed (e.g. the one kept between daily runs).
+  const userColumns = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
+  for (const col of ['first_name', 'last_name', 'city', 'address', 'phone', 'terms_accepted_at']) {
+    if (!userColumns.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
+  }
   return db;
 }

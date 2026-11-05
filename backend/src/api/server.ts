@@ -60,7 +60,21 @@ const credentialsSchema = z.object({
 });
 
 const registerSchema = credentialsSchema
-  .extend({ password: z.string().max(200), confirmPassword: z.string().max(200) })
+  .extend({
+    password: z.string().max(200),
+    confirmPassword: z.string().max(200),
+    acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must agree to the Terms and Conditions' }) }),
+    firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
+    lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
+    city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
+    address: z.string().trim().min(1, { message: 'Enter your address' }).max(200),
+    phone: z
+      .string()
+      .trim()
+      .max(20)
+      .regex(/^(\+?[0-9][0-9 ()-]{5,19})?$/, { message: 'Enter a valid phone number (digits, spaces, + ( ) -)' })
+      .optional(),
+  })
   .superRefine((v, ctx) => {
     if (v.password !== v.confirmPassword) {
       ctx.addIssue({ code: 'custom', path: ['confirmPassword'], message: 'The passwords do not match' });
@@ -129,10 +143,10 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     reply.header('Set-Cookie', sessionCookie(createSession(deps.db, user.id), SESSION_MAX_AGE_SECONDS));
 
   app.post('/api/auth/register', async (req, reply) => {
-    const { email, password } = registerSchema.parse(req.body);
+    const { email, password, firstName, lastName, city, address, phone } = registerSchema.parse(req.body);
     let user: User;
     try {
-      user = createUser(deps.db, email, password);
+      user = createUser(deps.db, email, password, { firstName, lastName, city, address, phone, termsAcceptedAt: new Date().toISOString() });
     } catch (e) {
       if (e instanceof Error && /UNIQUE/i.test(e.message)) {
         return reply.status(409).send({ error: 'An account with this email already exists' });

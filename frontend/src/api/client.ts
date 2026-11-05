@@ -50,6 +50,23 @@ export interface User {
   email: string;
   role: 'admin' | 'user';
   createdAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  city: string | null;
+  address: string | null;
+  phone: string | null;
+}
+
+export interface RegisterBody {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  firstName: string;
+  lastName: string;
+  city: string;
+  address: string;
+  phone?: string;
+  acceptTerms: boolean;
 }
 
 /** An error response from the API; `status` 401 means the session is missing or expired. */
@@ -79,7 +96,7 @@ export const api = {
   me: () => request<{ user: User }>('/auth/me').then((r) => r.user),
   login: (body: { email: string; password: string }) =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: json(body) }).then((r) => r.user),
-  register: (body: { email: string; password: string; confirmPassword: string }) =>
+  register: (body: RegisterBody) =>
     request<{ user: User }>('/auth/register', { method: 'POST', body: json(body) }).then((r) => r.user),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   shops: () => request<Shop[]>('/shops'),

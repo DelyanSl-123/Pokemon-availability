@@ -9,6 +9,22 @@ export interface User {
   email: string;
   role: Role;
   createdAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  city: string | null;
+  address: string | null;
+  phone: string | null;
+}
+
+/** Details asked on the registration form (phone is optional). */
+export interface Profile {
+  firstName: string;
+  lastName: string;
+  city: string;
+  address: string;
+  phone?: string;
+  /** Set when the person ticked the Terms and Conditions box. */
+  termsAcceptedAt?: string;
 }
 
 interface UserRow {
@@ -17,12 +33,27 @@ interface UserRow {
   password_hash: string;
   role: Role;
   created_at: string;
+  first_name: string | null;
+  last_name: string | null;
+  city: string | null;
+  address: string | null;
+  phone: string | null;
 }
 
 const SESSION_DAYS = 30;
 export const SESSION_MAX_AGE_SECONDS = SESSION_DAYS * 24 * 60 * 60;
 
-const toUser = (r: UserRow): User => ({ id: r.id, email: r.email, role: r.role, createdAt: r.created_at });
+const toUser = (r: UserRow): User => ({
+  id: r.id,
+  email: r.email,
+  role: r.role,
+  createdAt: r.created_at,
+  firstName: r.first_name,
+  lastName: r.last_name,
+  city: r.city,
+  address: r.address,
+  phone: r.phone,
+});
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 export function normalizeEmail(email: string): string {
@@ -34,10 +65,22 @@ function findRow(db: DB, email: string): UserRow | undefined {
 }
 
 /** Registration always creates a regular user; the admin account only comes from {@link ensureAdmin}. */
-export function createUser(db: DB, email: string, password: string): User {
+export function createUser(db: DB, email: string, password: string, profile?: Profile): User {
   const info = db
-    .prepare(`INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'user')`)
-    .run(normalizeEmail(email), hashPassword(password));
+    .prepare(
+      `INSERT INTO users (email, password_hash, role, first_name, last_name, city, address, phone, terms_accepted_at)
+       VALUES (?, ?, 'user', ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      normalizeEmail(email),
+      hashPassword(password),
+      profile?.firstName ?? null,
+      profile?.lastName ?? null,
+      profile?.city ?? null,
+      profile?.address ?? null,
+      profile?.phone || null,
+      profile?.termsAcceptedAt ?? null,
+    );
   return toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid) as UserRow);
 }
 
