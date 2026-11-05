@@ -13,7 +13,7 @@ async function setup() {
   const scheduler = { start: vi.fn(), stop: vi.fn() };
   const service = { isRunning: () => false, run: vi.fn() };
   const defaults = { cron: '0 9 * * *', query: 'pokemon tcg' };
-  const app = await buildServer({ db, service: service as never, scheduler, defaults });
+  const app = await buildServer({ db, service: service as never, scheduler, defaults, security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
   return { app, scheduler, service };
 }
 
