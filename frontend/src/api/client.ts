@@ -97,7 +97,9 @@ export const api = {
   login: (body: { email: string; password: string }) =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: json(body) }).then((r) => r.user),
   register: (body: RegisterBody) =>
-    request<{ user: User }>('/auth/register', { method: 'POST', body: json(body) }).then((r) => r.user),
+    request<{ email: string; emailSent: boolean }>('/auth/register', { method: 'POST', body: json(body) }),
+  activate: (token: string) => request<{ activated: boolean }>('/auth/activate', { method: 'POST', body: json({ token }) }),
+  resendActivation: (email: string) => request<{ ok: boolean }>('/auth/resend', { method: 'POST', body: json({ email }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   shops: () => request<Shop[]>('/shops'),
   addShop: (body: { url: string; searchUrl?: string }) => request<Shop>('/shops', { method: 'POST', body: json(body) }),

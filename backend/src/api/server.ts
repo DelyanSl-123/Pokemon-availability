@@ -4,7 +4,11 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import * as cron from 'node-cron';
 import { z } from 'zod';
 import {
+  ACTIVATION_HOURS,
+  activateWithToken,
   authenticate,
+  createActivationToken,
+  findUserByEmail,
   createSession,
   createUser,
   deleteSession,
@@ -16,6 +20,7 @@ import type { DB } from '../db/connection';
 import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from '../db/repository';
 import type { Scheduler } from '../core/scheduler';
 import type { Service } from '../core/service';
+import { buildActivationEmail, type Mailer } from '../mail/mailer';
 import { passwordProblems } from '../auth/password-rules';
 import { registerBotProtection, type SecurityOptions } from './security';
 import { normalizeShopInput } from '../shops/shop-urls';
@@ -34,6 +39,10 @@ export interface ServerDeps {
   security?: SecurityOptions;
   /** Trust X-Forwarded-For (set when running behind a reverse proxy) so limits apply per real client. */
   trustProxy?: boolean;
+  /** Sends the activation e-mail. */
+  mailer: Mailer;
+  /** Public address of the web app, used in the activation link (no trailing slash). */
+  appUrl: string;
 }
 
 declare module 'fastify' {
@@ -44,7 +53,7 @@ declare module 'fastify' {
 
 const SESSION_COOKIE = 'cm_session';
 /** API paths that work without being signed in. */
-const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me']);
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend']);
 
 function readCookie(req: FastifyRequest, name: string): string | undefined {
   for (const part of (req.headers.cookie ?? '').split(';')) {
@@ -153,14 +162,40 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       }
       throw e;
     }
-    signIn(reply, user);
-    return reply.status(201).send({ user });
+    // The account stays inactive (and nobody is signed in) until the e-mail link is opened.
+    const emailSent = await sendActivation(user.email, user.firstName, user.id);
+    return reply.status(201).send({ email: user.email, emailSent });
+  });
+
+  async function sendActivation(email: string, firstName: string | null, userId: number): Promise<boolean> {
+    const link = `${deps.appUrl.replace(/\/+$/, '')}/?activate=${createActivationToken(deps.db, userId)}`;
+    const result = await deps.mailer.send(buildActivationEmail(email, firstName, link, ACTIVATION_HOURS));
+    return result.sent;
+  }
+
+  app.post('/api/auth/activate', async (req, reply) => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(req.body);
+    if (!activateWithToken(deps.db, token)) {
+      return reply.status(400).send({ error: 'This activation link is invalid or has expired. Request a new one from the sign-in page.' });
+    }
+    return { activated: true };
+  });
+
+  // Always answers the same, so it cannot be used to find out which e-mails have accounts.
+  app.post('/api/auth/resend', async (req) => {
+    const { email } = z.object({ email: z.string().trim().email() }).parse(req.body);
+    const user = findUserByEmail(deps.db, email);
+    if (user && !user.emailVerified) await sendActivation(user.email, user.firstName, user.id);
+    return { ok: true };
   });
 
   app.post('/api/auth/login', async (req, reply) => {
     const { email, password } = credentialsSchema.parse(req.body);
     const user = authenticate(deps.db, email, password);
     if (!user) return reply.status(401).send({ error: 'Wrong email or password' });
+    if (!user.emailVerified) {
+      return reply.status(403).send({ error: 'Your account is not activated yet. Open the link we sent to your email.', code: 'not_activated' });
+    }
     signIn(reply, user);
     return { user };
   });

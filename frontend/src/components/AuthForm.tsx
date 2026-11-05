@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api, type User } from '../api/client';
 import { PASSWORD_MIN, passwordProblems } from '../utils/password';
 
@@ -24,10 +24,36 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
     setProfile({ ...profile, [k]: e.target.value });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  /** E-mail of an account that still has to be activated (offers "send the link again"). */
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+
+  // The link in the activation e-mail opens the app as /?activate=<token>.
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('activate');
+    if (!token) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    api
+      .activate(token)
+      .then(() => setNotice('Your account is activated. You can sign in now.'))
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  const resend = async () => {
+    if (!pendingEmail) return;
+    setError(null);
+    try {
+      await api.resendActivation(pendingEmail);
+      setNotice(`If ${pendingEmail} has an account waiting for activation, we sent a new link.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     if (mode === 'register') {
       const problems = passwordProblems(password, email);
       if (problems.length > 0) return setError(problems.join('. '));
@@ -36,9 +62,25 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
     }
     setBusy(true);
     try {
-      onSignedIn(await (mode === 'login' ? api.login({ email, password }) : api.register({ email, password, confirmPassword: confirm, ...profile, phone: profile.phone.trim() || undefined, acceptTerms })));
+      if (mode === 'login') {
+        onSignedIn(await api.login({ email, password }));
+      } else {
+        const res = await api.register({ email, password, confirmPassword: confirm, ...profile, phone: profile.phone.trim() || undefined, acceptTerms });
+        setPendingEmail(res.email);
+        setPassword('');
+        setConfirm('');
+        setAcceptTerms(false);
+        setMode('login');
+        setNotice(
+          res.emailSent
+            ? `Almost done! We sent an activation link to ${res.email}. Open it to activate your account, then sign in.`
+            : `Your account was created, but the activation email could not be sent. Press "Send the link again" below.`,
+        );
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      if (mode === 'login' && /not activated/i.test(message)) setPendingEmail(email);
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -57,6 +99,15 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
         <h1>{mode === 'login' ? 'Sign in' : 'Create an account'}</h1>
         <p className="sub">CollectibleMarket · Pokémon TCG availability tracker</p>
         {error && <div className="banner error">{error}</div>}
+        {notice && <div className="banner ok">{notice}</div>}
+        {pendingEmail && mode === 'login' && (
+          <p className="sub">
+            No email?{' '}
+            <button type="button" className="link" onClick={resend}>
+              Send the link again
+            </button>
+          </p>
+        )}
         <form className="grid" onSubmit={submit}>
           {mode === 'register' && (
             <>

@@ -61,7 +61,7 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
     if (!general.allow(req.ip)) {
       return reply.header('Retry-After', '60').status(429).send({ error: 'Too many requests, slow down' });
     }
-    if (req.method === 'POST' && (path === '/api/auth/login' || path === '/api/auth/register') && !logins.allow(req.ip)) {
+    if (req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/resend', '/api/auth/activate'].includes(path) && !logins.allow(req.ip)) {
       return reply.header('Retry-After', '600').status(429).send({ error: 'Too many sign-in attempts, try again later' });
     }
   });
