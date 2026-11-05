@@ -158,11 +158,15 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .fbtn b { background:var(--accent); color:#fff; border-radius:999px; font-size:.72rem; min-width:18px; height:18px; line-height:18px; text-align:center; padding:0 5px; }
   .fbtn b:empty { display:none; }
   .iconbtn svg, .fbtn svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+  .search.topsearch { flex:none; width:150px; min-width:0; transition:width .2s; }
+  .search.topsearch:focus-within { width:300px; }
+  .topsearch input { height:36px; border-radius:999px; background:var(--hero-hover); border-color:var(--hero-line); color:var(--hero-text); }
+  .topsearch input::placeholder { color:var(--hero-muted); }
+  .topsearch svg { stroke:var(--hero-muted); }
   .burger { display:none; }
   .fpanel { position:absolute; top:100%; right:0; left:0; }
   .fpanel .wrap { display:flex; justify-content:flex-end; }
   .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
-  .fpanel .search { min-width:0; flex:none; }
   .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
   .fpanel .row select { flex:1; min-width:0; }
   .fpanel .actions { display:flex; gap:8px; align-items:center; }
@@ -179,9 +183,11 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .drawer .glist button.active { border-left-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
   @media (max-width:860px) {
     .burger { display:inline-flex; } .gamenav { display:none; }
+    .search.topsearch, .search.topsearch:focus-within { flex:1; width:auto; } .gamenav + .fbtn { margin-left:0; }
     .bar { gap:10px; } .bar h1 { font-size:1.05rem; } .gamenav + .fbtn { margin-left:auto; }
   }
   @media (min-width:861px) { .drawer, .scrim { display:none; } }
+  @media (max-width:560px) { .bar .brand h1 { display:none; } }
   @media (max-width:480px) { .fbtn span.t { display:none; } .fbtn { padding:0 10px; } .bar .brand h1 { font-size:.98rem; } }
   details.shopsbox { margin:18px 0 0; }
   details.shopsbox > summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:650; color:var(--muted); }
@@ -334,16 +340,16 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   <div class="wrap bar">
     <button type="button" class="iconbtn burger" id="burger" aria-label="Games menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="brand">${LOGO_SVG}<h1>Collectible<span>Market</span></h1></div>
+    <div class="search topsearch">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="Search…" aria-label="Search products">
+    </div>
     <nav class="gamenav" id="games" aria-label="Games"></nav>
     <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
     ${accountLink}
   </div>
   <div class="fpanel" id="fpanel" hidden><div class="wrap">
   <form class="controls" id="filters" autocomplete="off">
-    <div class="search">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
-    </div>
     <div class="row">
       <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
       <select id="sort" aria-label="Sort">
@@ -471,7 +477,6 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
   function setPanel(open) {
     $('fpanel').hidden = !open; $('fbtn').setAttribute('aria-expanded', String(open));
-    if (open) $('q').focus();
   }
   $('burger').addEventListener('click', function () {
     $('drawer').classList.add('open'); $('scrim').hidden = false; $('burger').setAttribute('aria-expanded', 'true');
@@ -861,11 +866,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       out.appendChild(all);
     }
     $('count').textContent = list.length + ' shown';
-    var active = (q ? 1 : 0) + (shop ? 1 : 0) + (sort !== 'shop' ? 1 : 0) + ($('instock').checked ? 1 : 0) + ($('onlynew').checked ? 1 : 0);
+    var active = (shop ? 1 : 0) + (sort !== 'shop' ? 1 : 0) + ($('instock').checked ? 1 : 0) + ($('onlynew').checked ? 1 : 0);
     $('fcount').textContent = active ? String(active) : '';
     refreshPicks();
   }
 
+  $('q').addEventListener('input', render);
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
   renderTabs();
