@@ -294,3 +294,55 @@ ul.rules {
 ul.rules li.ok, .rule.good { color: var(--ok); }
 ul.rules li.bad, .rule.bad { color: var(--bad); }
 .rule { font-size: 0.8rem; }
+
+/* honeypot field of the registration form: off-screen, not display:none (some bots skip those) */
+.hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 12px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.panel {
+  width: min(560px, 100%);
+  background: var(--card, #fff);
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 4px;
+}
+
+.panel h3 {
+  margin: 22px 0 8px;
+  font-size: 1rem;
+}
+
+.panel .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+button.danger {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: transparent;
+}

@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type Product, type RunSummary, type Settings, type Shop, type User } from './api/client';
+import { AccountPanel } from './components/AccountPanel';
 import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
 import { StockBadge } from './components/StockBadge';
@@ -9,25 +10,60 @@ export default function App() {
   // undefined while checking the session, null when signed out.
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
+  const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
+
   useEffect(() => {
+    // The link in the "confirm your new email" message opens the app as /?confirm-email=<token>.
+    const token = new URLSearchParams(window.location.search).get('confirm-email');
+    if (token) {
+      window.history.replaceState(null, '', window.location.pathname);
+      api
+        .confirmEmail(token)
+        .then(() => setFlash({ ok: true, text: 'Your new email address is confirmed. Sign in with it.' }))
+        .catch((err) => setFlash({ ok: false, text: err instanceof Error ? err.message : String(err) }))
+        .finally(() => api.me().then(setUser, () => setUser(null)));
+      return;
+    }
     api.me().then(setUser, () => setUser(null));
   }, []);
 
   if (user === undefined) return <main className="auth sub">Loading…</main>;
-  if (user === null) return <AuthForm onSignedIn={setUser} />;
   return (
-    <Tracker
-      user={user}
-      onSignOut={() => {
-        void api.logout().catch(() => undefined);
-        setUser(null);
-      }}
-      onSessionExpired={() => setUser(null)}
-    />
+    <>
+      {flash && (
+        <div className={`banner ${flash.ok ? 'ok' : 'error'}`} onClick={() => setFlash(null)}>
+          {flash.text}
+        </div>
+      )}
+      {user === null ? (
+        <AuthForm onSignedIn={setUser} />
+      ) : (
+        <Tracker
+          user={user}
+          onUserChange={setUser}
+          onSignOut={() => {
+            void api.logout().catch(() => undefined);
+            setUser(null);
+          }}
+          onSessionExpired={() => setUser(null)}
+        />
+      )}
+    </>
   );
 }
 
-function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut: () => void; onSessionExpired: () => void }) {
+function Tracker({
+  user,
+  onUserChange,
+  onSignOut,
+  onSessionExpired,
+}: {
+  user: User;
+  onUserChange: (user: User) => void;
+  onSignOut: () => void;
+  onSessionExpired: () => void;
+}) {
+  const [showAccount, setShowAccount] = useState(false);
   const isAdmin = user.role === 'admin';
   const [shops, setShops] = useState<Shop[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -110,6 +146,14 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
 
   return (
     <main>
+      {showAccount && (
+        <AccountPanel
+          user={user}
+          onClose={() => setShowAccount(false)}
+          onUserChange={onUserChange}
+          onDeleted={onSessionExpired}
+        />
+      )}
       <header className="top">
         <div>
           <h1>Pokémon TCG Tracker</h1>
@@ -120,6 +164,9 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
             <span>
               {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
             </span>
+            <button className="link" onClick={() => setShowAccount(true)}>
+              My account
+            </button>
             <button className="link" onClick={onSignOut}>
               Sign out
             </button>
