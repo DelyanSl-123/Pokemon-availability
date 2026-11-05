@@ -10,6 +10,7 @@ const BLOCK_MARKERS: [string, RegExp][] = [
   ['Incapsula', /incapsula incident|_incapsula_/i],
   ['Cloudflare', /cf-chl|just a moment\.\.\.|attention required! \| cloudflare/i],
   ['Access Denied', /access denied|request blocked|request unsuccessful/i],
+  ['browser check', /one moment, please|request is being verified|checking your browser/i],
   ['CAPTCHA', /captcha/i],
   ['needs JavaScript', /enable javascript|javascript is required/i],
 ];

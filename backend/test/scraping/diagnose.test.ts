@@ -32,6 +32,8 @@ describe('diagnose', () => {
     expect(detectBotWall(BOT_WALL_HTML)).toBe('Incapsula');
     expect(diagnose(BOT_WALL_HTML, 'https://x.test/')).toContain('botWall=Incapsula');
     expect(detectBotWall('<html><title>Just a moment...</title></html>')).toBe('Cloudflare');
+    // mgames.bg answers GitHub's servers with this page instead of the product list
+    expect(detectBotWall('<html><title>One moment, please...</title><body>Please wait while your request is being verified...</body></html>')).toBe('browser check');
   });
 
   it('does not mistake a normal shop page that mentions captcha for a bot wall', () => {
