@@ -110,7 +110,7 @@ For each shop's search-results page the parser tries, in order: schema.org JSON-
 
 ## Things to know
 
-- **robots.txt:** it is obeyed by default per shop (checkbox in the Shops table). A shop that disallows the search page shows up as `blocked` in the last-run panel and in the email instead of being silently skipped. Check each shop's terms before turning this off.
+- **robots.txt:** it is obeyed by default per shop (checkbox in the Shops table). A shop that disallows the search page shows up as `blocked` in the last-run panel and in the report instead of being silently skipped. Check each shop's terms before turning this off.
 - Only the first page of results is read. Server-rendered pages work; pages that load products with JavaScript after the page opens will return nothing (they would need a headless browser or the shop's own JSON endpoint).
 - The check waits 1.5 s between shops and sends one request per shop per day.
 
