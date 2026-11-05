@@ -118,31 +118,38 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   h1 { margin:0; font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
   h1 span { color:var(--accent); }
   .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
-  .account { margin-left:auto; display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
+  .gamepick { margin-left:auto; }
+  .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
   .account:hover { background:var(--hero-hover); border-color:var(--muted); }
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
+  @media (max-width:560px) { .brand { flex-wrap:wrap; } .gamepick { order:3; flex:1 0 100%; margin-left:0; } .gamepick select { width:100%; } }
   .meta { color:var(--hero-muted); font-size:.85rem; margin:18px 0 0; }
   .meta b { color:var(--hero-text); font-weight:600; }
-  .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:14px; border:1px solid var(--hero-line); border-radius:14px; overflow:hidden; }
-  .stat { padding:12px 16px; border-left:1px solid var(--hero-line); }
+  .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; border-top:1px solid var(--hero-line); }
+  .stat { padding:14px 0 0; }
   .stat:first-child { border-left:0; }
-  .stat b { display:block; font-size:1.7rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stat b { display:block; font-size:1.5rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; font-variant-numeric:tabular-nums; }
   .stat span { color:var(--hero-muted); font-size:.8rem; }
   .stat.s-ok b { color:var(--hero-ok); } .stat.s-new b { color:var(--hero-new); }
   @media (max-width:560px) {
     .stats { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-    .stat:nth-child(3) { border-left:0; } .stat:nth-child(n+3) { border-top:1px solid var(--hero-line); }
+    .stat:nth-child(n+3) { margin-top:4px; }
   }
 
   /* shops */
   .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .games { display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 4px; }
-  .game-tab { font:inherit; cursor:pointer; padding:8px 16px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text); font-weight:650; font-size:.9rem; }
-  .game-tab small { color:var(--muted); font-weight:500; margin-left:4px; }
-  .game-tab:hover { border-color:var(--muted); }
-  .game-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-  .game-tab.active small { color:rgba(255,255,255,.85); }
+  .gamepick { position:relative; }
+  .gamepick select { appearance:none; -webkit-appearance:none; height:38px; padding:0 34px 0 16px; border-radius:999px; border:1px solid var(--hero-line); background:var(--hero-hover); color:var(--hero-text); font-weight:650; font-size:.9rem; cursor:pointer; }
+  .gamepick select option { color:#111; background:#fff; }
+  .gamepick::after { content:""; position:absolute; right:15px; top:50%; width:6px; height:6px; margin-top:-5px; border:solid var(--hero-text); border-width:0 2px 2px 0; transform:rotate(45deg); pointer-events:none; }
+  .gamepick select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  details.shopsbox { margin:18px 0 0; }
+  details.shopsbox > summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:650; color:var(--muted); }
+  details.shopsbox > summary::-webkit-details-marker { display:none; }
+  details.shopsbox > summary::before { content:"▸"; font-size:.7rem; transition:transform .15s; }
+  details.shopsbox[open] > summary::before { transform:rotate(90deg); }
+  details.shopsbox .shops { margin-top:10px; }
   .shops { display:flex; gap:8px; flex-wrap:wrap; }
   .chip { font:inherit; color:inherit; text-align:left; cursor:pointer; display:flex; gap:9px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px 8px 10px; font-size:.85rem; box-shadow:var(--shadow); transition:border-color .15s; max-width:100%; }
   .chip:hover { border-color:var(--muted); }
@@ -163,7 +170,11 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
 
   /* toolbar */
-  .controls { position:sticky; top:0; z-index:2; display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 0; margin-top:14px; background:color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px; margin-top:20px; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .controls .btn { height:38px; padding:0 18px; border-radius:10px; font:inherit; font-size:.9rem; font-weight:650; cursor:pointer; }
+  .controls .btn.go { background:var(--accent); color:#fff; border:1px solid var(--accent); }
+  .controls .btn.reset { background:transparent; color:var(--muted); border:1px solid var(--line); }
+  .controls .sub { margin-left:auto; }
   .search { position:relative; flex:1; min-width:200px; }
   .search svg { position:absolute; left:11px; top:50%; width:16px; height:16px; transform:translateY(-50%); fill:none; stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
   input[type=search], select { font:inherit; font-size:.9rem; color:inherit; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 11px; height:38px; }
@@ -285,6 +296,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     <div class="brand">
       ${LOGO_SVG}
       <div><h1>Collectible<span>Market</span></h1><div class="tagline">Trading card game availability tracker</div></div>
+      <label class="gamepick"><select id="games" aria-label="Game"></select></label>
       ${accountLink}
     </div>
     <p class="meta">Checked <b>${esc(when)}</b> (Sofia time) · search phrase <b>“${esc(summary.query)}”</b></p>
@@ -298,11 +310,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </header>
 
 <main class="wrap" id="list-view">
-  <nav class="games" id="games" aria-label="Games"></nav>
-  <div class="section-label">Shops</div>
-  <div class="shops" id="shops"></div>
-
-  <div class="controls">
+  <form class="controls" id="filters" autocomplete="off">
     <div class="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
@@ -316,8 +324,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     </select>
     <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
     <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
+    <button type="submit" class="btn go">Filter</button>
+    <button type="reset" class="btn reset" id="reset">Reset</button>
     <span class="sub" id="count"></span>
-  </div>
+  </form>
+
+  <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
   <div id="results"></div>
 
@@ -382,22 +394,16 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   var games = data.games || [];
   function inGame(x) { return !game || x.game === game; }
   function renderTabs() {
-    var nav = $('games');
-    nav.textContent = '';
-    var tabs = [{ slug: '', name: 'All games' }].concat(games);
-    tabs.forEach(function (g) {
-      var b = el('button', 'game-tab' + (g.slug === game ? ' active' : ''), g.name);
-      b.type = 'button';
+    var sel = $('games');
+    sel.textContent = '';
+    [{ slug: '', name: 'All games' }].concat(games).forEach(function (g) {
       var n = products.filter(function (p) { return !g.slug || p.game === g.slug; }).length;
-      b.appendChild(el('small', '', String(n)));
-      b.addEventListener('click', function () {
-        game = g.slug;
-        renderTabs();
-        buildShops();
-        render();
-      });
-      nav.appendChild(b);
+      var o = el('option', '', g.name + ' (' + n + ')');
+      o.value = g.slug;
+      sel.appendChild(o);
     });
+    sel.value = game;
+    sel.onchange = function () { game = sel.value; buildShops(); render(); };
   }
 
   function updateTotals() {
@@ -414,6 +420,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     $('shop').textContent = '';
     var all = el('option', '', 'All shops'); all.value = ''; $('shop').appendChild(all);
     updateTotals();
+    $('shops-sum').textContent = 'Shops (' + (data.shops.filter(inGame).length + (data.manualShops || []).filter(inGame).length) + ')';
     data.shops.filter(inGame).forEach(function (s) {
       var chip = el('button', 'chip ' + s.status);
       chip.style.setProperty('--shop', shopColor(s.name));
@@ -780,9 +787,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     refreshPicks();
   }
 
-  ['q', 'shop', 'sort', 'instock', 'onlynew'].forEach(function (id) {
-    $(id).addEventListener(id === 'q' ? 'input' : 'change', render);
-  });
+  $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); });
+  $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
   renderTabs();
   buildShops();
   render();
