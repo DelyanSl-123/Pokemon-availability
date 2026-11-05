@@ -99,7 +99,7 @@ describe('API accounts', () => {
     const reg = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: ' Viewer@Test.com ', password: 'Viewer-Pass#2024', confirmPassword: 'Viewer-Pass#2024' },
+      payload: { email: ' Viewer@Test.com ', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x' },
     });
     expect(reg.statusCode).toBe(201);
     expect(reg.json().user).toMatchObject({ email: 'viewer@test.com', role: 'user' });
