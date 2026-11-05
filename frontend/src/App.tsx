@@ -1,9 +1,10 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { api, ApiError, type Product, type RunSummary, type Settings, type Shop, type User } from './api/client';
+import { api, ApiError, type Game, type Product, type RunSummary, type Settings, type Shop, type User } from './api/client';
 import { AccountPanel } from './components/AccountPanel';
 import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
 import { StockBadge } from './components/StockBadge';
+import { GameMenu } from './components/GameMenu';
 import { fmtDate } from './utils/format';
 
 export default function App() {
@@ -69,12 +70,16 @@ function Tracker({
   const [products, setProducts] = useState<Product[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [games, setGames] = useState<Game[]>([]);
+  /** The selected tab of the games menu; '' = all games. */
+  const [game, setGame] = useState('');
 
   const [shopFilter, setShopFilter] = useState<number | ''>('');
   const [inStockOnly, setInStockOnly] = useState(false);
 
   const [newShopUrl, setNewShopUrl] = useState('');
   const [newShopSearch, setNewShopSearch] = useState('');
+  const [newShopGame, setNewShopGame] = useState('');
 
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,14 +96,18 @@ function Tracker({
   }, [onSessionExpired]);
 
   const loadProducts = useCallback(
-    () => api.products({ shopId: shopFilter === '' ? undefined : shopFilter, inStock: inStockOnly }).then(setProducts),
-    [shopFilter, inStockOnly],
+    () =>
+      api
+        .products({ shopId: shopFilter === '' ? undefined : shopFilter, game: game || undefined, inStock: inStockOnly })
+        .then(setProducts),
+    [shopFilter, game, inStockOnly],
   );
 
   const loadAll = useCallback(
     () =>
       guard(async () => {
-        const [s, r, cfg] = await Promise.all([api.shops(), api.runs(), isAdmin ? api.settings() : null]);
+        const [s, r, cfg, g] = await Promise.all([api.shops(), api.runs(), isAdmin ? api.settings() : null, api.games()]);
+        setGames(g);
         setShops(s);
         setRuns(r);
         setSettings(cfg);
@@ -126,7 +135,7 @@ function Tracker({
   const addShop = (e: FormEvent) => {
     e.preventDefault();
     void guard(async () => {
-      await api.addShop({ url: newShopUrl, searchUrl: newShopSearch.trim() || undefined });
+      await api.addShop({ url: newShopUrl, searchUrl: newShopSearch.trim() || undefined, game: newShopGame || game || 'pokemon' });
       setNewShopUrl('');
       setNewShopSearch('');
       setShops(await api.shops());
@@ -143,6 +152,9 @@ function Tracker({
   };
 
   const lastRun = runs[0];
+  const gameName = (slug: string) => games.find((g) => g.slug === slug)?.name ?? slug;
+  const inGame = (slug: string | undefined) => !game || (slug ?? 'pokemon') === game;
+  const shownShops = shops.filter((s) => inGame(s.game));
 
   return (
     <main>
@@ -156,8 +168,8 @@ function Tracker({
       )}
       <header className="top">
         <div>
-          <h1>Pokémon TCG Tracker</h1>
-          <p className="sub">Checks your shops once a day for Pokémon TCG products.</p>
+          <h1>Trading Card Tracker</h1>
+          <p className="sub">Checks your shops once a day for Pokémon, One Piece, Yu-Gi-Oh!, Magic and other card games.</p>
         </div>
         <div className="side">
           <div className="account">
@@ -181,6 +193,8 @@ function Tracker({
         </div>
       </header>
 
+      <GameMenu games={games} selected={game} onSelect={setGame} isAdmin={isAdmin} onChanged={loadAll} run={guard} />
+
       {error && <div className="banner error">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
 
@@ -192,9 +206,10 @@ function Tracker({
               {fmtDate(lastRun.startedAt)} · {lastRun.source} · search “{lastRun.query}”
             </p>
             <div className="chips">
-              {lastRun.shops.map((s) => (
+              {lastRun.shops.filter((s) => inGame(s.game)).map((s) => (
                 <div key={s.shopId} className={`chip ${s.status}`}>
                   <strong>{s.shopName}</strong>
+                  {!game && <span className="sub">{gameName(s.game ?? 'pokemon')}</span>}
                   <span>
                     {s.status === 'ok'
                       ? `${s.found} found · ${s.newCount} new${s.backInStock ? ` · ${s.backInStock} back in stock` : ''}`
@@ -221,12 +236,13 @@ function Tracker({
               </tr>
             </thead>
             <tbody>
-              {shops
+              {shownShops
                 .filter((s) => s.enabled)
                 .map((shop) => (
                   <tr key={shop.id}>
                     <td>
                       <strong>{shop.name}</strong>
+                      {!game && <div className="sub">{gameName(shop.game)}</div>}
                     </td>
                     <td className="sub">{shop.searchUrl}</td>
                   </tr>
@@ -246,10 +262,11 @@ function Tracker({
                 </tr>
               </thead>
               <tbody>
-                {shops.map((shop) => (
+                {shownShops.map((shop) => (
                   <ShopRow
                     key={shop.id}
                     shop={shop}
+                    gameName={game ? undefined : gameName(shop.game)}
                     onChange={(patch) =>
                       void guard(async () => {
                         await api.patchShop(shop.id, patch);
@@ -265,10 +282,10 @@ function Tracker({
                     }
                   />
                 ))}
-                {shops.length === 0 && (
+                {shownShops.length === 0 && (
                   <tr>
                     <td colSpan={5} className="sub">
-                      No shops yet.
+                      No shop pages for this game yet.
                     </td>
                   </tr>
                 )}
@@ -282,6 +299,13 @@ function Tracker({
                 value={newShopSearch}
                 onChange={(e) => setNewShopSearch(e.target.value)}
               />
+              <select value={newShopGame || game || 'pokemon'} onChange={(e) => setNewShopGame(e.target.value)} aria-label="Game">
+                {games.map((g) => (
+                  <option key={g.slug} value={g.slug}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
               <button type="submit">Add shop</button>
             </form>
           </>
@@ -294,7 +318,7 @@ function Tracker({
           <div className="row">
             <select value={shopFilter} onChange={(e) => setShopFilter(e.target.value === '' ? '' : Number(e.target.value))}>
               <option value="">All shops</option>
-              {shops.map((s) => (
+              {shownShops.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
@@ -323,7 +347,10 @@ function Tracker({
                     {p.title}
                   </a>
                 </td>
-                <td>{p.shopName}</td>
+                <td>
+                  {p.shopName}
+                  {!game && <div className="sub">{gameName(p.game)}</div>}
+                </td>
                 <td className="right">{p.price === null ? '—' : `${p.price.toFixed(2)} ${p.currency ?? ''}`}</td>
                 <td>
                   <StockBadge inStock={p.inStock} />

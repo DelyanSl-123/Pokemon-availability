@@ -8,19 +8,21 @@ const PRESETS: Record<string, string> = {
   'toyzzshop.bg': 'https://toyzzshop.bg/nastolni-igri',
 };
 
-export function defaultSearchUrl(origin: string): string {
+export function defaultSearchUrl(origin: string, game = 'pokemon'): string {
   const host = new URL(origin).hostname.replace(/^www\./, '');
-  return PRESETS[host] ?? `${origin}/search?q={query}`;
+  // The presets are Pokémon category pages.
+  return (game === 'pokemon' ? PRESETS[host] : undefined) ?? `${origin}/search?q={query}`;
 }
 
 export interface NormalizedShop {
   name: string;
   baseUrl: string;
   searchUrl: string;
+  game: string;
 }
 
 /** Turns "www.ozone.bg" (or a full URL) into a shop definition. Throws on invalid input. */
-export function normalizeShopInput(input: { url: string; name?: string; searchUrl?: string }): NormalizedShop {
+export function normalizeShopInput(input: { url: string; name?: string; searchUrl?: string; game?: string }): NormalizedShop {
   let raw = input.url.trim();
   if (!raw) throw new Error('Shop URL is required');
   if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
@@ -29,11 +31,11 @@ export function normalizeShopInput(input: { url: string; name?: string; searchUr
   const baseUrl = parsed.origin.toLowerCase();
   const host = parsed.hostname.replace(/^www\./, '');
 
-  const searchUrl = input.searchUrl?.trim() || defaultSearchUrl(baseUrl);
+  const searchUrl = input.searchUrl?.trim() || defaultSearchUrl(baseUrl, input.game?.trim() || 'pokemon');
   // Either a search template containing {query}, or a fixed category/listing page URL.
   new URL(searchUrl.replace('{query}', 'test')); // throws if it is not a valid URL
 
-  return { name: input.name?.trim() || host, baseUrl, searchUrl };
+  return { name: input.name?.trim() || host, baseUrl, searchUrl, game: input.game?.trim() || 'pokemon' };
 }
 
 /** A URL without {query} is a fixed listing/category page (every product on it is checked). */
@@ -47,6 +49,14 @@ export function isCategoryPage(template: string): boolean {
  * categories such as "board games") is still filtered by Pokémon TCG keywords.
  */
 export function listsOnlyPokemon(template: string): boolean {
+  return listsOnlyGame(template, /pok[eé]mon|покемон/i, true);
+}
+
+/**
+ * Like {@link listsOnlyPokemon}, for any game (`gameRe` = the game's keywords). The generic word
+ * "tcg" in the path only counts when `tcgWordCounts` (it is the Pokémon rule: such a page may list other games).
+ */
+export function listsOnlyGame(template: string, gameRe: RegExp, tcgWordCounts = false): boolean {
   if (!isCategoryPage(template)) return false;
   let path = template;
   try {
@@ -54,7 +64,7 @@ export function listsOnlyPokemon(template: string): boolean {
   } catch {
     /* use raw */
   }
-  return /pok[eé]mon|покемон|tcg/i.test(path);
+  return gameRe.test(path.replace(/[-_/]+/g, ' ')) || (tcgWordCounts && /tcg/i.test(path));
 }
 
 export function buildSearchUrl(template: string, query: string): string {

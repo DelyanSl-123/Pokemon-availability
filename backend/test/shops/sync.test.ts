@@ -44,12 +44,31 @@ describe('syncShops', () => {
 describe('readManualShops', () => {
   it('lists enabled manual shops with their listing page (or home page for search templates)', () => {
     expect(readManualShops(shopsFile(entries))).toEqual([
-      { name: 'toyzzshop.bg', url: 'https://toyzzshop.bg/nastolni-igri', note: 'The shop blocks automatic checks (HTTP 403)' },
-      { name: 'other.test', url: 'https://other.test', note: '' },
+      { name: 'toyzzshop.bg', url: 'https://toyzzshop.bg/nastolni-igri', note: 'The shop blocks automatic checks (HTTP 403)', game: 'pokemon' },
+      { name: 'other.test', url: 'https://other.test', note: '', game: 'pokemon' },
     ]);
   });
 
   it('returns nothing when there is no shops file', () => {
     expect(readManualShops(path.join(os.tmpdir(), 'does-not-exist', 'shops.json'))).toEqual([]);
+  });
+});
+
+describe('syncShops with several games', () => {
+  it('keeps one row per shop address and game', () => {
+    const db = openDb(':memory:');
+    const file = shopsFile([
+      { url: 'https://kamato.test', searchUrl: 'https://kamato.test/collections/pokemon' },
+      { url: 'https://kamato.test', game: 'onepiece', searchUrl: 'https://kamato.test/collections/one-piece' },
+    ]);
+    syncShops(db, file);
+    expect(listShops(db).map((s) => [s.baseUrl, s.game])).toEqual([
+      ['https://kamato.test', 'pokemon'],
+      ['https://kamato.test', 'onepiece'],
+    ]);
+
+    // dropping one game's entry removes only that row
+    syncShops(db, shopsFile([{ url: 'https://kamato.test', searchUrl: 'https://kamato.test/collections/pokemon' }]));
+    expect(listShops(db).map((s) => s.game)).toEqual(['pokemon']);
   });
 });

@@ -33,7 +33,7 @@ export interface ReportOptions {
   /** Address of the web app; adds a sign-in / register icon to the header (http(s) only). */
   appUrl?: string;
   /** Shops that are never checked automatically; listed with a link to check them by hand. */
-  manualShops?: { name: string; url: string; note: string }[];
+  manualShops?: { name: string; url: string; note: string; game?: string }[];
 }
 
 export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): string {
@@ -44,24 +44,35 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
       '<span>Sign in</span></a>'
     : '';
+  // The menu: the games that were checked. Older summaries (before games existed) are all Pokémon.
+  const games = summary.games && summary.games.length > 0 ? summary.games : [{ slug: 'pokemon', name: 'Pokémon' }];
+  const gameName = new Map(games.map((g) => [g.slug, g.name]));
+  // The same shop can be listed for several games: then its name gets the game appended.
+  const namesCount = new Map<string, number>();
+  for (const s of summary.shops) namesCount.set(s.shopName, (namesCount.get(s.shopName) ?? 0) + 1);
+  const label = (shopName: string, game: string) =>
+    (namesCount.get(shopName) ?? 0) > 1 ? `${shopName} · ${gameName.get(game) ?? game}` : shopName;
   const when = new Date(summary.startedAt).toLocaleString('en-GB', { timeZone: 'Europe/Sofia' });
 
   const data = {
     generated: when,
     query: summary.query,
+    games,
     shops: summary.shops.map((s) => ({
-      name: s.shopName,
+      name: label(s.shopName, s.game ?? 'pokemon'),
+      game: s.game ?? 'pokemon',
       page: s.searchUrl ?? '',
       status: s.status,
       message: s.message ?? '',
       found: s.found,
       scanned: s.scanned ?? null,
     })),
-    manualShops: (opts.manualShops ?? []).map((s) => ({ name: s.name, page: s.url, note: s.note })),
+    manualShops: (opts.manualShops ?? []).map((s) => ({ name: s.name, page: s.url, note: s.note, game: s.game ?? 'pokemon' })),
     products: summary.products.map((p) => ({
       title: p.title,
       url: p.url,
-      shop: p.shopName,
+      shop: label(p.shopName, p.game ?? 'pokemon'),
+      game: p.game ?? 'pokemon',
       price: p.price,
       currency: p.currency ?? '',
       inStock: p.inStock,
@@ -126,6 +137,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 
   /* shops */
   .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .games { display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 4px; }
+  .game-tab { font:inherit; cursor:pointer; padding:8px 16px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--text); font-weight:650; font-size:.9rem; }
+  .game-tab small { color:var(--muted); font-weight:500; margin-left:4px; }
+  .game-tab:hover { border-color:var(--muted); }
+  .game-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .game-tab.active small { color:rgba(255,255,255,.85); }
   .shops { display:flex; gap:8px; flex-wrap:wrap; }
   .chip { font:inherit; color:inherit; text-align:left; cursor:pointer; display:flex; gap:9px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px 8px 10px; font-size:.85rem; box-shadow:var(--shadow); transition:border-color .15s; max-width:100%; }
   .chip:hover { border-color:var(--muted); }
@@ -267,7 +284,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   <div class="wrap">
     <div class="brand">
       ${LOGO_SVG}
-      <div><h1>Collectible<span>Market</span></h1><div class="tagline">Pokémon TCG availability tracker</div></div>
+      <div><h1>Collectible<span>Market</span></h1><div class="tagline">Trading card game availability tracker</div></div>
       ${accountLink}
     </div>
     <p class="meta">Checked <b>${esc(when)}</b> (Sofia time) · search phrase <b>“${esc(summary.query)}”</b></p>
@@ -281,6 +298,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </header>
 
 <main class="wrap" id="list-view">
+  <nav class="games" id="games" aria-label="Games"></nav>
   <div class="section-label">Shops</div>
   <div class="shops" id="shops"></div>
 
@@ -359,50 +377,81 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
   function priceText(p) { return p.price === null ? '—' : p.price.toFixed(2) + ' ' + p.currency; }
 
-  // totals
-  $('s-total').textContent = products.length;
-  $('s-stock').textContent = products.filter(function (p) { return p.inStock === true; }).length;
-  $('s-oos').textContent = products.filter(function (p) { return p.inStock === false; }).length;
-  $('s-new').textContent = products.filter(function (p) { return p.isNew; }).length;
-
-  // shop status chips (click to filter) + filter options
-  data.shops.forEach(function (s) {
-    var chip = el('button', 'chip ' + s.status);
-    chip.style.setProperty('--shop', shopColor(s.name));
-    chip.type = 'button';
-    chip.dataset.shop = s.name;
-    chip.title = s.status === 'ok' ? 'Show only ' + s.name : s.status;
-    chip.appendChild(el('span', 'dot'));
-    var text = el('span');
-    text.appendChild(el('b', '', s.name));
-    var detail = s.status === 'ok'
-      ? s.found + ' found' + (s.scanned !== null ? ' of ' + s.scanned + ' on page' : '')
-      : s.status + ': ' + s.message;
-    text.appendChild(el('div', 'sub', detail));
-    if (s.status === 'ok' && s.message) text.appendChild(el('div', 'sub', s.message));
-    chip.appendChild(text);
-    chip.addEventListener('click', function () {
-      $('shop').value = $('shop').value === s.name ? '' : s.name;
-      render();
+  // the menu: one tab per game ('' = all games)
+  var game = '';
+  var games = data.games || [];
+  function inGame(x) { return !game || x.game === game; }
+  function renderTabs() {
+    var nav = $('games');
+    nav.textContent = '';
+    var tabs = [{ slug: '', name: 'All games' }].concat(games);
+    tabs.forEach(function (g) {
+      var b = el('button', 'game-tab' + (g.slug === game ? ' active' : ''), g.name);
+      b.type = 'button';
+      var n = products.filter(function (p) { return !g.slug || p.game === g.slug; }).length;
+      b.appendChild(el('small', '', String(n)));
+      b.addEventListener('click', function () {
+        game = g.slug;
+        renderTabs();
+        buildShops();
+        render();
+      });
+      nav.appendChild(b);
     });
-    $('shops').appendChild(chip);
-    var opt = el('option', '', s.name); opt.value = s.name; $('shop').appendChild(opt);
-  });
+  }
 
-  // shops that cannot be checked automatically: a link to their page, to check by hand
-  (data.manualShops || []).forEach(function (s) {
-    var page = safeUrl(s.page);
-    var chip = el(page ? 'a' : 'span', 'chip manual');
-    if (page) { chip.href = page; chip.target = '_blank'; chip.rel = 'noreferrer'; }
-    chip.title = 'Not checked automatically – open the shop to check it yourself';
-    chip.appendChild(el('span', 'dot'));
-    var text = el('span');
-    text.appendChild(el('b', '', s.name));
-    text.appendChild(el('div', 'sub', 'Check manually' + (page ? ' ↗' : '')));
-    if (s.note) text.appendChild(el('div', 'sub', s.note));
-    chip.appendChild(text);
-    $('shops').appendChild(chip);
-  });
+  function updateTotals() {
+    var inScope = products.filter(inGame);
+    $('s-total').textContent = inScope.length;
+    $('s-stock').textContent = inScope.filter(function (p) { return p.inStock === true; }).length;
+    $('s-oos').textContent = inScope.filter(function (p) { return p.inStock === false; }).length;
+    $('s-new').textContent = inScope.filter(function (p) { return p.isNew; }).length;
+  }
+
+  // shop status chips (click to filter) + filter options, for the selected game
+  function buildShops() {
+    $('shops').textContent = '';
+    $('shop').textContent = '';
+    var all = el('option', '', 'All shops'); all.value = ''; $('shop').appendChild(all);
+    updateTotals();
+    data.shops.filter(inGame).forEach(function (s) {
+      var chip = el('button', 'chip ' + s.status);
+      chip.style.setProperty('--shop', shopColor(s.name));
+      chip.type = 'button';
+      chip.dataset.shop = s.name;
+      chip.title = s.status === 'ok' ? 'Show only ' + s.name : s.status;
+      chip.appendChild(el('span', 'dot'));
+      var text = el('span');
+      text.appendChild(el('b', '', s.name));
+      var detail = s.status === 'ok'
+        ? s.found + ' found' + (s.scanned !== null ? ' of ' + s.scanned + ' on page' : '')
+        : s.status + ': ' + s.message;
+      text.appendChild(el('div', 'sub', detail));
+      if (s.status === 'ok' && s.message) text.appendChild(el('div', 'sub', s.message));
+      chip.appendChild(text);
+      chip.addEventListener('click', function () {
+        $('shop').value = $('shop').value === s.name ? '' : s.name;
+        render();
+      });
+      $('shops').appendChild(chip);
+      var opt = el('option', '', s.name); opt.value = s.name; $('shop').appendChild(opt);
+    });
+
+    // shops that cannot be checked automatically: a link to their page, to check by hand
+    (data.manualShops || []).filter(inGame).forEach(function (s) {
+      var page = safeUrl(s.page);
+      var chip = el(page ? 'a' : 'span', 'chip manual');
+      if (page) { chip.href = page; chip.target = '_blank'; chip.rel = 'noreferrer'; }
+      chip.title = 'Not checked automatically – open the shop to check it yourself';
+      chip.appendChild(el('span', 'dot'));
+      var text = el('span');
+      text.appendChild(el('b', '', s.name));
+      text.appendChild(el('div', 'sub', 'Check manually' + (page ? ' ↗' : '')));
+      if (s.note) text.appendChild(el('div', 'sub', s.note));
+      chip.appendChild(text);
+      $('shops').appendChild(chip);
+    });
+  }
 
   function rank(p) { return p.inStock === true ? 0 : p.inStock === null ? 1 : 2; }
   var sorters = {
@@ -680,6 +729,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     var shop = $('shop').value;
     var sort = $('sort').value;
     var list = products.filter(function (p) {
+      if (!inGame(p)) return false;
       if (shop && p.shop !== shop) return false;
       if ($('instock').checked && p.inStock !== true) return false;
       if ($('onlynew').checked && !p.isNew) return false;
@@ -733,6 +783,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   ['q', 'shop', 'sort', 'instock', 'onlynew'].forEach(function (id) {
     $(id).addEventListener(id === 'q' ? 'input' : 'change', render);
   });
+  renderTabs();
+  buildShops();
   render();
   route();
 })();

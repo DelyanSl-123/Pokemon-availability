@@ -29,7 +29,22 @@ import {
   type User,
 } from '../auth/users';
 import type { DB } from '../db/connection';
-import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from '../db/repository';
+import {
+  createGame,
+  createShop,
+  deleteGame,
+  deleteShop,
+  getGame,
+  getSettings,
+  listGames,
+  listProducts,
+  listRuns,
+  listShops,
+  saveSettings,
+  updateGame,
+  updateShop,
+} from '../db/repository';
+import { slugify } from '../shops/games';
 import type { Scheduler } from '../core/scheduler';
 import type { Service } from '../core/service';
 import { buildActivationEmail, buildEmailChangeEmail, buildPasswordResetEmail, type Mailer } from '../mail/mailer';
@@ -114,8 +129,23 @@ const registerSchema = credentialsSchema
 
 const emailOnlySchema = z.object({ email: z.string().trim().email(), captchaToken: z.string().max(4000).optional() });
 
+const gameCreateSchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  /** Comma-separated words that mark a product of this game. Defaults to the name. */
+  keywords: z.string().trim().max(300).optional(),
+  query: z.string().trim().max(80).optional(),
+});
+
+const gamePatchSchema = z.object({
+  name: z.string().trim().min(2).max(40).optional(),
+  keywords: z.string().trim().min(2).max(300).optional(),
+  query: z.string().trim().min(2).max(80).optional(),
+  enabled: z.boolean().optional(),
+});
+
 const shopCreateSchema = z.object({
   url: z.string().min(3),
+  game: z.string().max(40).optional(),
   name: z.string().optional(),
   searchUrl: z.string().optional(),
   respectRobots: z.boolean().optional(),
@@ -347,8 +377,41 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   /* ---- shops ---- */
   app.get('/api/shops', async () => listShops(deps.db));
 
+  /* ---- games (the menu) ---- */
+
+  app.get('/api/games', async () => listGames(deps.db));
+
+  app.post('/api/games', { preHandler: requireAdmin }, async (req, reply) => {
+    const body = gameCreateSchema.parse(req.body);
+    const slug = slugify(body.name);
+    if (!slug) return reply.status(400).send({ error: 'Use letters or digits in the game name' });
+    if (getGame(deps.db, slug)) return reply.status(409).send({ error: 'This game is already in the menu' });
+    const game = createGame(deps.db, {
+      slug,
+      name: body.name,
+      keywords: body.keywords || body.name,
+      query: body.query || body.name,
+    });
+    return reply.status(201).send(game);
+  });
+
+  app.patch('/api/games/:slug', { preHandler: requireAdmin }, async (req, reply) => {
+    const { slug } = z.object({ slug: z.string() }).parse(req.params);
+    const game = updateGame(deps.db, slug, gamePatchSchema.parse(req.body));
+    return game ?? reply.status(404).send({ error: 'Game not found' });
+  });
+
+  app.delete('/api/games/:slug', { preHandler: requireAdmin }, async (req, reply) => {
+    const { slug } = z.object({ slug: z.string() }).parse(req.params);
+    if (getGame(deps.db, slug)?.builtin) {
+      return reply.status(400).send({ error: 'The built-in games cannot be deleted; switch them off instead' });
+    }
+    return deleteGame(deps.db, slug) ? reply.status(204).send() : reply.status(404).send({ error: 'Game not found' });
+  });
+
   app.post('/api/shops', { preHandler: requireAdmin }, async (req, reply) => {
     const body = shopCreateSchema.parse(req.body);
+    if (body.game && !getGame(deps.db, body.game)) return reply.status(400).send({ error: 'Unknown game' });
     let normalized;
     try {
       normalized = normalizeShopInput(body);
@@ -360,7 +423,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       return reply.status(201).send(shop);
     } catch (e) {
       if (e instanceof Error && /UNIQUE/i.test(e.message)) {
-        return reply.status(409).send({ error: 'This shop is already in the list' });
+        return reply.status(409).send({ error: 'This shop page is already in the list for this game' });
       }
       throw e;
     }
@@ -382,10 +445,11 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     const q = z
       .object({
         shopId: z.coerce.number().int().optional(),
+        game: z.string().max(40).optional(),
         inStock: z.enum(['true', 'false']).optional(),
       })
       .parse(req.query);
-    return listProducts(deps.db, { shopId: q.shopId, inStockOnly: q.inStock === 'true' });
+    return listProducts(deps.db, { shopId: q.shopId, game: q.game, inStockOnly: q.inStock === 'true' });
   });
 
   app.get('/api/runs', async () => listRuns(deps.db, 20));

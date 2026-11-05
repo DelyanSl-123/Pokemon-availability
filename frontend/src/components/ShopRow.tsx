@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { Shop } from '../api/client';
 
-export function ShopRow({ shop, onChange, onDelete }: { shop: Shop; onChange: (patch: Partial<Shop>) => void; onDelete: () => void }) {
+export function ShopRow({
+  shop,
+  gameName,
+  onChange,
+  onDelete,
+}: {
+  shop: Shop;
+  /** Shown under the name when the list mixes several games. */
+  gameName?: string;
+  onChange: (patch: Partial<Shop>) => void;
+  onDelete: () => void;
+}) {
   const [searchUrl, setSearchUrl] = useState(shop.searchUrl);
   useEffect(() => setSearchUrl(shop.searchUrl), [shop.searchUrl]);
 
@@ -9,6 +20,7 @@ export function ShopRow({ shop, onChange, onDelete }: { shop: Shop; onChange: (p
     <tr>
       <td>
         <strong>{shop.name}</strong>
+        {gameName && <span className="badge muted">{gameName}</span>}
         <div className="sub">{shop.baseUrl}</div>
       </td>
       <td>

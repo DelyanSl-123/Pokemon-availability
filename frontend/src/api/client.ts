@@ -1,3 +1,12 @@
+export interface Game {
+  slug: string;
+  name: string;
+  keywords: string;
+  query: string;
+  enabled: boolean;
+  builtin: boolean;
+}
+
 export interface Shop {
   id: number;
   name: string;
@@ -5,10 +14,12 @@ export interface Shop {
   searchUrl: string;
   enabled: boolean;
   respectRobots: boolean;
+  game: string;
 }
 
 export interface Product {
   id: number;
+  game: string;
   shopId: number;
   shopName: string;
   url: string;
@@ -23,6 +34,7 @@ export interface Product {
 
 export interface ShopRunResult {
   shopId: number;
+  game?: string;
   shopName: string;
   status: 'ok' | 'blocked' | 'error';
   message?: string;
@@ -128,12 +140,19 @@ export const api = {
   deleteAccount: (password: string) => request<void>('/account', { method: 'DELETE', body: json({ password }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   shops: () => request<Shop[]>('/shops'),
-  addShop: (body: { url: string; searchUrl?: string }) => request<Shop>('/shops', { method: 'POST', body: json(body) }),
+  games: () => request<Game[]>('/games'),
+  addGame: (body: { name: string; keywords?: string; query?: string }) =>
+    request<Game>('/games', { method: 'POST', body: json(body) }),
+  patchGame: (slug: string, body: Partial<Pick<Game, 'name' | 'keywords' | 'query' | 'enabled'>>) =>
+    request<Game>(`/games/${slug}`, { method: 'PATCH', body: json(body) }),
+  deleteGame: (slug: string) => request<void>(`/games/${slug}`, { method: 'DELETE' }),
+  addShop: (body: { url: string; searchUrl?: string; game?: string }) => request<Shop>('/shops', { method: 'POST', body: json(body) }),
   patchShop: (id: number, body: Partial<Pick<Shop, 'name' | 'searchUrl' | 'enabled' | 'respectRobots'>>) =>
     request<Shop>(`/shops/${id}`, { method: 'PATCH', body: json(body) }),
   deleteShop: (id: number) => request<void>(`/shops/${id}`, { method: 'DELETE' }),
-  products: (q: { shopId?: number; inStock?: boolean }) => {
+  products: (q: { shopId?: number; game?: string; inStock?: boolean }) => {
     const params = new URLSearchParams();
+    if (q.game) params.set('game', q.game);
     if (q.shopId !== undefined) params.set('shopId', String(q.shopId));
     if (q.inStock) params.set('inStock', 'true');
     return request<Product[]>(`/products?${params}`);
