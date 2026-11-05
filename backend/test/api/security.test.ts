@@ -12,6 +12,8 @@ async function setup(security = {}) {
     service: service as never,
     scheduler: { start: vi.fn(), stop: vi.fn() },
     defaults: { cron: '0 9 * * *', query: 'pokemon tcg' },
+    mailer: { send: async () => ({ sent: true }) },
+    appUrl: 'https://app.test',
     security,
   });
 }

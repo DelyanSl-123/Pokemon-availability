@@ -294,3 +294,93 @@ ul.rules {
 ul.rules li.ok, .rule.good { color: var(--ok); }
 ul.rules li.bad, .rule.bad { color: var(--bad); }
 .rule { font-size: 0.8rem; }
+
+/* honeypot field of the registration form: off-screen, not display:none (some bots skip those) */
+.hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 12px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.panel {
+  width: min(560px, 100%);
+  background: var(--card, #fff);
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.panel h2 {
+  margin: 0 0 4px;
+}
+
+.panel h3 {
+  margin: 22px 0 8px;
+  font-size: 1rem;
+}
+
+.panel .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+button.danger {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: transparent;
+}
+
+.game-menu {
+  margin: 14px 0 4px;
+}
+.game-menu .tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.game-menu .tab {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 650;
+  cursor: pointer;
+}
+.game-menu .tab:hover {
+  border-color: var(--muted);
+}
+.game-menu .tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.game-menu .tab.add {
+  border-style: dashed;
+  color: var(--muted);
+  font-weight: 500;
+}
+.game-menu .manage {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}

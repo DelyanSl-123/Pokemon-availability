@@ -6,6 +6,8 @@ export interface Shop {
   searchUrl: string;
   enabled: boolean;
   respectRobots: boolean;
+  /** Slug of the game this page is checked for (see shops/games.ts). */
+  game: string;
 }
 
 export interface ExtractedProduct {
@@ -21,6 +23,7 @@ export interface ExtractedProduct {
 export interface FoundProduct extends ExtractedProduct {
   shopId: number;
   shopName: string;
+  game: string;
   isNew: boolean;
   backInStock: boolean;
 }
@@ -30,6 +33,7 @@ export type ShopStatus = 'ok' | 'blocked' | 'error';
 export interface ShopRunResult {
   shopId: number;
   shopName: string;
+  game: string;
   /** The shop search-results page that was checked (link for the email). */
   searchUrl?: string;
   /** Products parsed from the page before the Pokémon keyword filter. */
@@ -49,6 +53,8 @@ export interface RunSummary {
   finishedAt: string;
   source: 'schedule' | 'manual';
   query: string;
+  /** The games that were checked (id and display name), in menu order. */
+  games?: { slug: string; name: string }[];
   shops: ShopRunResult[];
   products: FoundProduct[];
 }

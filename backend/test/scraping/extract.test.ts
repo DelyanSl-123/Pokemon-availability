@@ -231,3 +231,22 @@ describe('extractProducts', () => {
     expect(extractProducts('<html><body><p>No results</p></body></html>', base)).toEqual([]);
   });
 });
+
+describe('extractAll for another game', () => {
+  const HTML = `<ul class="products">
+    <li class="product-item"><h3 class="product-name"><a href="/op">One Piece Card Game Booster OP-05</a></h3><span class="price">5,00 лв.</span><button>Купи</button></li>
+    <li class="product-item"><h3 class="product-name"><a href="/pk">Pokémon TCG Booster Pack</a></h3><span class="price">8,00 лв.</span><button>Купи</button></li>
+  </ul>`;
+  const onePiece = /\bone[\s:-]*piece\b/i;
+
+  it('keeps only the products of the given game', () => {
+    expect(extractAll(HTML, 'https://s.test/', { gameRe: onePiece }).matched.map((p) => p.url)).toEqual(['https://s.test/op']);
+    expect(extractAll(HTML, 'https://s.test/').matched.map((p) => p.url)).toEqual(['https://s.test/pk']); // default: Pokémon
+    expect(extractAll(HTML, 'https://s.test/', { gameRe: onePiece, filterPokemon: false }).matched).toHaveLength(2);
+  });
+
+  it('does not leak one game\'s keywords into the next call', () => {
+    extractAll(HTML, 'https://s.test/', { gameRe: onePiece });
+    expect(extractAll(HTML, 'https://s.test/').matched).toHaveLength(1);
+  });
+});

@@ -1,7 +1,9 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensureAdmin } from './auth/users';
+import { ensureAdmin, purgeUnactivated } from './auth/users';
+import { captchaFromEnv } from './api/captcha';
+import { createMailer, mailConfigFromEnv } from './mail/mailer';
 import { openDb } from './db/connection';
 import { createShop, getSettings, listShops } from './db/repository';
 import { createScheduler } from './core/scheduler';
@@ -54,7 +56,13 @@ async function main() {
     staticDir: fs.existsSync(frontendDist) ? frontendDist : undefined,
     secureCookies: process.env.COOKIE_SECURE === 'true',
     trustProxy: process.env.TRUST_PROXY === 'true',
+    mailer: createMailer(mailConfigFromEnv()),
+    captcha: captchaFromEnv(),
+    appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,
   });
+
+  // Registrations whose activation link was never opened are removed after 24 hours.
+  setInterval(() => purgeUnactivated(db), 60 * 60 * 1000).unref();
 
   const settings = getSettings(db, defaults);
   scheduler.start(settings.cron);
@@ -62,6 +70,7 @@ async function main() {
   await app.listen({ port, host: process.env.HOST ?? '127.0.0.1' });
   console.log(`Pokemon tracker API on http://127.0.0.1:${port}`);
   console.log(`Daily check: "${settings.cron}" (${timezone})`);
+  if (!process.env.SMTP_HOST) console.log('SMTP_HOST not set: activation links are printed here instead of emailed.');
 }
 
 main().catch((e) => {

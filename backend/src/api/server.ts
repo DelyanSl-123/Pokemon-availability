@@ -4,7 +4,23 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import * as cron from 'node-cron';
 import { z } from 'zod';
 import {
+  ACTIVATION_HOURS,
+  EMAIL_CHANGE_HOURS,
+  RESET_HOURS,
+  activateWithToken,
   authenticate,
+  changePassword,
+  confirmEmailChange,
+  createActivationToken,
+  createEmailChange,
+  createPasswordReset,
+  deleteAccount,
+  findUserByEmail,
+  purgeUnactivated,
+  resetPassword,
+  updateProfile,
+  userForPasswordReset,
+  verifyUserPassword,
   createSession,
   createUser,
   deleteSession,
@@ -13,11 +29,28 @@ import {
   type User,
 } from '../auth/users';
 import type { DB } from '../db/connection';
-import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from '../db/repository';
+import {
+  createGame,
+  createShop,
+  deleteGame,
+  deleteShop,
+  getGame,
+  getSettings,
+  listGames,
+  listProducts,
+  listRuns,
+  listShops,
+  saveSettings,
+  updateGame,
+  updateShop,
+} from '../db/repository';
+import { slugify } from '../shops/games';
 import type { Scheduler } from '../core/scheduler';
 import type { Service } from '../core/service';
+import { buildActivationEmail, buildEmailChangeEmail, buildPasswordResetEmail, type Mailer } from '../mail/mailer';
 import { passwordProblems } from '../auth/password-rules';
-import { registerBotProtection, type SecurityOptions } from './security';
+import type { Captcha } from './captcha';
+import { createLockout, registerBotProtection, type SecurityOptions } from './security';
 import { normalizeShopInput } from '../shops/shop-urls';
 import type { Settings } from '../types';
 
@@ -34,6 +67,12 @@ export interface ServerDeps {
   security?: SecurityOptions;
   /** Trust X-Forwarded-For (set when running behind a reverse proxy) so limits apply per real client. */
   trustProxy?: boolean;
+  /** Sends the activation e-mail. */
+  mailer: Mailer;
+  /** Optional Turnstile CAPTCHA for register / forgot-password / resend. */
+  captcha?: Captcha;
+  /** Public address of the web app, used in the activation link (no trailing slash). */
+  appUrl: string;
 }
 
 declare module 'fastify' {
@@ -44,7 +83,7 @@ declare module 'fastify' {
 
 const SESSION_COOKIE = 'cm_session';
 /** API paths that work without being signed in. */
-const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me']);
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config']);
 
 function readCookie(req: FastifyRequest, name: string): string | undefined {
   for (const part of (req.headers.cookie ?? '').split(';')) {
@@ -54,13 +93,33 @@ function readCookie(req: FastifyRequest, name: string): string | undefined {
   return undefined;
 }
 
+const PHONE_RE = /^(\+?[0-9][0-9 ()-]{5,19})?$/;
+const PHONE_MESSAGE = 'Enter a valid phone number (digits, spaces, + ( ) -)';
+
 const credentialsSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1).max(200),
 });
 
 const registerSchema = credentialsSchema
-  .extend({ password: z.string().max(200), confirmPassword: z.string().max(200) })
+  .extend({
+    password: z.string().max(200),
+    confirmPassword: z.string().max(200),
+    captchaToken: z.string().max(4000).optional(),
+    /** Hidden "honeypot" field: people never see it, simple bots fill it in. */
+    website: z.string().max(200).optional(),
+    acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must agree to the Terms and Conditions' }) }),
+    firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
+    lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
+    city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
+    address: z.string().trim().min(1, { message: 'Enter your address' }).max(200),
+    phone: z
+      .string()
+      .trim()
+      .max(20)
+      .regex(PHONE_RE, { message: PHONE_MESSAGE })
+      .optional(),
+  })
   .superRefine((v, ctx) => {
     if (v.password !== v.confirmPassword) {
       ctx.addIssue({ code: 'custom', path: ['confirmPassword'], message: 'The passwords do not match' });
@@ -68,8 +127,25 @@ const registerSchema = credentialsSchema
     for (const message of passwordProblems(v.password, v.email)) ctx.addIssue({ code: 'custom', path: ['password'], message });
   });
 
+const emailOnlySchema = z.object({ email: z.string().trim().email(), captchaToken: z.string().max(4000).optional() });
+
+const gameCreateSchema = z.object({
+  name: z.string().trim().min(2).max(40),
+  /** Comma-separated words that mark a product of this game. Defaults to the name. */
+  keywords: z.string().trim().max(300).optional(),
+  query: z.string().trim().max(80).optional(),
+});
+
+const gamePatchSchema = z.object({
+  name: z.string().trim().min(2).max(40).optional(),
+  keywords: z.string().trim().min(2).max(300).optional(),
+  query: z.string().trim().min(2).max(80).optional(),
+  enabled: z.boolean().optional(),
+});
+
 const shopCreateSchema = z.object({
   url: z.string().min(3),
+  game: z.string().max(40).optional(),
   name: z.string().optional(),
   searchUrl: z.string().optional(),
   respectRobots: z.boolean().optional(),
@@ -129,26 +205,161 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     reply.header('Set-Cookie', sessionCookie(createSession(deps.db, user.id), SESSION_MAX_AGE_SECONDS));
 
   app.post('/api/auth/register', async (req, reply) => {
-    const { email, password } = registerSchema.parse(req.body);
+    const { email, password, firstName, lastName, city, address, phone, captchaToken, website } = registerSchema.parse(req.body);
+    if (website) return reply.status(201).send({ email, emailSent: true }); // honeypot: pretend it worked
+    if (!(await captchaOk(captchaToken, req.ip))) return reply.status(400).send({ error: CAPTCHA_MESSAGE });
+    purgeUnactivated(deps.db);
     let user: User;
     try {
-      user = createUser(deps.db, email, password);
+      user = createUser(deps.db, email, password, { firstName, lastName, city, address, phone, termsAcceptedAt: new Date().toISOString() });
     } catch (e) {
       if (e instanceof Error && /UNIQUE/i.test(e.message)) {
-        return reply.status(409).send({ error: 'An account with this email already exists' });
+        return reply.status(409).send({
+          error: 'An account with this email already exists. If it is yours and was not activated yet, use "Send the link again" on the sign-in page.',
+        });
       }
       throw e;
     }
-    signIn(reply, user);
-    return reply.status(201).send({ user });
+    // The account stays inactive (and nobody is signed in) until the e-mail link is opened.
+    const emailSent = await sendActivation(user.email, user.firstName, user.id);
+    return reply.status(201).send({ email: user.email, emailSent });
+  });
+
+  const CAPTCHA_MESSAGE = 'Please complete the CAPTCHA check';
+  const captchaOk = async (token: string | undefined, ip: string) => !deps.captcha || (await deps.captcha.verify(token, ip));
+  const lockout = createLockout(deps.security?.loginFailuresPerAccount ?? 5, 15 * 60_000, deps.security?.now);
+  const linkTo = (query: string, token: string) => `${deps.appUrl.replace(/\/+$/, '')}/?${query}=${token}`;
+
+  /** What the browser needs to know before showing the forms. */
+  app.get('/api/config', async () => ({ turnstileSiteKey: deps.captcha?.siteKey ?? null }));
+
+  async function sendActivation(email: string, firstName: string | null, userId: number): Promise<boolean> {
+    const link = `${deps.appUrl.replace(/\/+$/, '')}/?activate=${createActivationToken(deps.db, userId)}`;
+    const result = await deps.mailer.send(buildActivationEmail(email, firstName, link, ACTIVATION_HOURS));
+    return result.sent;
+  }
+
+  app.post('/api/auth/activate', async (req, reply) => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(req.body);
+    if (!activateWithToken(deps.db, token)) {
+      return reply.status(400).send({ error: 'This activation link is invalid or has expired. Request a new one from the sign-in page.' });
+    }
+    return { activated: true };
+  });
+
+  // Always answers the same, so it cannot be used to find out which e-mails have accounts.
+  app.post('/api/auth/resend', async (req, reply) => {
+    const { email, captchaToken } = emailOnlySchema.parse(req.body);
+    if (!(await captchaOk(captchaToken, req.ip))) return reply.status(400).send({ error: CAPTCHA_MESSAGE });
+    const user = findUserByEmail(deps.db, email);
+    if (user && !user.emailVerified) await sendActivation(user.email, user.firstName, user.id);
+    return { ok: true };
   });
 
   app.post('/api/auth/login', async (req, reply) => {
     const { email, password } = credentialsSchema.parse(req.body);
+    const lockKey = email.trim().toLowerCase();
+    if (lockout.isLocked(lockKey)) {
+      return reply.header('Retry-After', '900').status(429).send({ error: 'Too many wrong passwords for this account. Try again in 15 minutes or reset your password.' });
+    }
     const user = authenticate(deps.db, email, password);
-    if (!user) return reply.status(401).send({ error: 'Wrong email or password' });
+    if (!user) {
+      lockout.fail(lockKey);
+      return reply.status(401).send({ error: 'Wrong email or password' });
+    }
+    lockout.reset(lockKey);
+    if (!user.emailVerified) {
+      return reply.status(403).send({ error: 'Your account is not activated yet. Open the link we sent to your email.', code: 'not_activated' });
+    }
     signIn(reply, user);
     return { user };
+  });
+
+  /* ---- forgotten password ---- */
+
+  // Always answers the same, so it cannot be used to find out which e-mails have accounts.
+  app.post('/api/auth/forgot', async (req, reply) => {
+    const { email, captchaToken } = emailOnlySchema.parse(req.body);
+    if (!(await captchaOk(captchaToken, req.ip))) return reply.status(400).send({ error: CAPTCHA_MESSAGE });
+    const user = findUserByEmail(deps.db, email);
+    if (user) {
+      const link = linkTo('reset', createPasswordReset(deps.db, user.id));
+      await deps.mailer.send(buildPasswordResetEmail(user.email, user.firstName, link, RESET_HOURS));
+    }
+    return { ok: true };
+  });
+
+  app.post('/api/auth/reset', async (req, reply) => {
+    const body = z
+      .object({ token: z.string().min(10).max(200), password: z.string().max(200), confirmPassword: z.string().max(200) })
+      .parse(req.body);
+    const user = userForPasswordReset(deps.db, body.token);
+    if (!user) return reply.status(400).send({ error: 'This reset link is invalid or has expired. Ask for a new one.' });
+    if (body.password !== body.confirmPassword) return reply.status(400).send({ error: 'The passwords do not match' });
+    const problems = passwordProblems(body.password, user.email);
+    if (problems.length > 0) return reply.status(400).send({ error: problems.join('; ') });
+    resetPassword(deps.db, body.token, body.password);
+    lockout.reset(user.email);
+    return { reset: true };
+  });
+
+  app.post('/api/auth/confirm-email', async (req, reply) => {
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(req.body);
+    if (!confirmEmailChange(deps.db, token)) {
+      return reply.status(400).send({ error: 'This link is invalid or has expired, or the address is already in use.' });
+    }
+    return { confirmed: true };
+  });
+
+  /* ---- the signed-in person's own account ---- */
+
+  const profileSchema = z.object({
+    firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
+    lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
+    city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
+    address: z.string().trim().min(1, { message: 'Enter your address' }).max(200),
+    phone: z.string().trim().max(20).regex(PHONE_RE, { message: PHONE_MESSAGE }).optional(),
+  });
+
+  app.patch('/api/account', async (req) => ({ user: updateProfile(deps.db, req.user!.id, profileSchema.parse(req.body)) }));
+
+  app.post('/api/account/password', async (req, reply) => {
+    const body = z
+      .object({ currentPassword: z.string().max(200), newPassword: z.string().max(200), confirmPassword: z.string().max(200) })
+      .parse(req.body);
+    if (!verifyUserPassword(deps.db, req.user!.id, body.currentPassword)) {
+      return reply.status(403).send({ error: 'Your current password is wrong' });
+    }
+    if (body.newPassword !== body.confirmPassword) return reply.status(400).send({ error: 'The passwords do not match' });
+    const problems = passwordProblems(body.newPassword, req.user!.email);
+    if (problems.length > 0) return reply.status(400).send({ error: problems.join('; ') });
+    changePassword(deps.db, req.user!.id, body.newPassword, readCookie(req, SESSION_COOKIE));
+    return { changed: true };
+  });
+
+  app.post('/api/account/email', async (req, reply) => {
+    const { newEmail, password } = z.object({ newEmail: z.string().trim().email(), password: z.string().max(200) }).parse(req.body);
+    if (!verifyUserPassword(deps.db, req.user!.id, password)) return reply.status(403).send({ error: 'Your password is wrong' });
+    if (findUserByEmail(deps.db, newEmail)) return reply.status(409).send({ error: 'This email address is already in use' });
+    const link = linkTo('confirm-email', createEmailChange(deps.db, req.user!.id, newEmail));
+    const result = await deps.mailer.send(buildEmailChangeEmail(newEmail.trim(), req.user!.firstName, link, EMAIL_CHANGE_HOURS));
+    return { emailSent: result.sent };
+  });
+
+  /** Everything stored about the person, as a downloadable file. */
+  app.get('/api/account/export', async (req, reply) => {
+    reply.header('Content-Disposition', 'attachment; filename="my-collectiblemarket-data.json"');
+    return { exportedAt: new Date().toISOString(), account: req.user };
+  });
+
+  app.delete('/api/account', async (req, reply) => {
+    const { password } = z.object({ password: z.string().max(200) }).parse(req.body);
+    if (req.user!.role === 'admin') {
+      return reply.status(403).send({ error: 'The admin account cannot be deleted here (it comes from ADMIN_EMAIL)' });
+    }
+    if (!verifyUserPassword(deps.db, req.user!.id, password)) return reply.status(403).send({ error: 'Your password is wrong' });
+    deleteAccount(deps.db, req.user!.id);
+    return reply.header('Set-Cookie', sessionCookie('', 0)).status(204).send();
   });
 
   app.post('/api/auth/logout', async (req, reply) => {
@@ -166,8 +377,41 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   /* ---- shops ---- */
   app.get('/api/shops', async () => listShops(deps.db));
 
+  /* ---- games (the menu) ---- */
+
+  app.get('/api/games', async () => listGames(deps.db));
+
+  app.post('/api/games', { preHandler: requireAdmin }, async (req, reply) => {
+    const body = gameCreateSchema.parse(req.body);
+    const slug = slugify(body.name);
+    if (!slug) return reply.status(400).send({ error: 'Use letters or digits in the game name' });
+    if (getGame(deps.db, slug)) return reply.status(409).send({ error: 'This game is already in the menu' });
+    const game = createGame(deps.db, {
+      slug,
+      name: body.name,
+      keywords: body.keywords || body.name,
+      query: body.query || body.name,
+    });
+    return reply.status(201).send(game);
+  });
+
+  app.patch('/api/games/:slug', { preHandler: requireAdmin }, async (req, reply) => {
+    const { slug } = z.object({ slug: z.string() }).parse(req.params);
+    const game = updateGame(deps.db, slug, gamePatchSchema.parse(req.body));
+    return game ?? reply.status(404).send({ error: 'Game not found' });
+  });
+
+  app.delete('/api/games/:slug', { preHandler: requireAdmin }, async (req, reply) => {
+    const { slug } = z.object({ slug: z.string() }).parse(req.params);
+    if (getGame(deps.db, slug)?.builtin) {
+      return reply.status(400).send({ error: 'The built-in games cannot be deleted; switch them off instead' });
+    }
+    return deleteGame(deps.db, slug) ? reply.status(204).send() : reply.status(404).send({ error: 'Game not found' });
+  });
+
   app.post('/api/shops', { preHandler: requireAdmin }, async (req, reply) => {
     const body = shopCreateSchema.parse(req.body);
+    if (body.game && !getGame(deps.db, body.game)) return reply.status(400).send({ error: 'Unknown game' });
     let normalized;
     try {
       normalized = normalizeShopInput(body);
@@ -179,7 +423,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       return reply.status(201).send(shop);
     } catch (e) {
       if (e instanceof Error && /UNIQUE/i.test(e.message)) {
-        return reply.status(409).send({ error: 'This shop is already in the list' });
+        return reply.status(409).send({ error: 'This shop page is already in the list for this game' });
       }
       throw e;
     }
@@ -201,10 +445,11 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     const q = z
       .object({
         shopId: z.coerce.number().int().optional(),
+        game: z.string().max(40).optional(),
         inStock: z.enum(['true', 'false']).optional(),
       })
       .parse(req.query);
-    return listProducts(deps.db, { shopId: q.shopId, inStockOnly: q.inStock === 'true' });
+    return listProducts(deps.db, { shopId: q.shopId, game: q.game, inStockOnly: q.inStock === 'true' });
   });
 
   app.get('/api/runs', async () => listRuns(deps.db, 20));

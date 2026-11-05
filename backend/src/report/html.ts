@@ -33,7 +33,7 @@ export interface ReportOptions {
   /** Address of the web app; adds a sign-in / register icon to the header (http(s) only). */
   appUrl?: string;
   /** Shops that are never checked automatically; listed with a link to check them by hand. */
-  manualShops?: { name: string; url: string; note: string }[];
+  manualShops?: { name: string; url: string; note: string; game?: string }[];
 }
 
 export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): string {
@@ -44,24 +44,35 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
       '<span>Sign in</span></a>'
     : '';
+  // The menu: the games that were checked. Older summaries (before games existed) are all Pokémon.
+  const games = summary.games && summary.games.length > 0 ? summary.games : [{ slug: 'pokemon', name: 'Pokémon' }];
+  const gameName = new Map(games.map((g) => [g.slug, g.name]));
+  // The same shop can be listed for several games: then its name gets the game appended.
+  const namesCount = new Map<string, number>();
+  for (const s of summary.shops) namesCount.set(s.shopName, (namesCount.get(s.shopName) ?? 0) + 1);
+  const label = (shopName: string, game: string) =>
+    (namesCount.get(shopName) ?? 0) > 1 ? `${shopName} · ${gameName.get(game) ?? game}` : shopName;
   const when = new Date(summary.startedAt).toLocaleString('en-GB', { timeZone: 'Europe/Sofia' });
 
   const data = {
     generated: when,
     query: summary.query,
+    games,
     shops: summary.shops.map((s) => ({
-      name: s.shopName,
+      name: label(s.shopName, s.game ?? 'pokemon'),
+      game: s.game ?? 'pokemon',
       page: s.searchUrl ?? '',
       status: s.status,
       message: s.message ?? '',
       found: s.found,
       scanned: s.scanned ?? null,
     })),
-    manualShops: (opts.manualShops ?? []).map((s) => ({ name: s.name, page: s.url, note: s.note })),
+    manualShops: (opts.manualShops ?? []).map((s) => ({ name: s.name, page: s.url, note: s.note, game: s.game ?? 'pokemon' })),
     products: summary.products.map((p) => ({
       title: p.title,
       url: p.url,
-      shop: p.shopName,
+      shop: label(p.shopName, p.game ?? 'pokemon'),
+      game: p.game ?? 'pokemon',
       price: p.price,
       currency: p.currency ?? '',
       inStock: p.inStock,
@@ -100,32 +111,90 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .sub { color:var(--muted); font-size:.85rem; }
 
   /* hero */
-  .hero { background:var(--hero); color:var(--hero-text); position:relative; padding:22px 0 26px; }
+  .hero { background:var(--hero); color:var(--hero-text); position:relative; padding:4px 0 22px; }
   .hero::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--holo); }
   .brand { display:flex; align-items:center; gap:14px; }
   .brand svg { width:52px; height:52px; flex:none; filter:drop-shadow(0 4px 10px rgba(227,53,13,.35)); }
   h1 { margin:0; font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
   h1 span { color:var(--accent); }
   .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
-  .account { margin-left:auto; display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
+  .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
   .account:hover { background:var(--hero-hover); border-color:var(--muted); }
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
   .meta { color:var(--hero-muted); font-size:.85rem; margin:18px 0 0; }
   .meta b { color:var(--hero-text); font-weight:600; }
-  .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:14px; border:1px solid var(--hero-line); border-radius:14px; overflow:hidden; }
-  .stat { padding:12px 16px; border-left:1px solid var(--hero-line); }
+  .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; border-top:1px solid var(--hero-line); }
+  .stat { padding:14px 0 0; }
   .stat:first-child { border-left:0; }
-  .stat b { display:block; font-size:1.7rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .stat b { display:block; font-size:1.5rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; font-variant-numeric:tabular-nums; }
   .stat span { color:var(--hero-muted); font-size:.8rem; }
   .stat.s-ok b { color:var(--hero-ok); } .stat.s-new b { color:var(--hero-new); }
   @media (max-width:560px) {
     .stats { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-    .stat:nth-child(3) { border-left:0; } .stat:nth-child(n+3) { border-top:1px solid var(--hero-line); }
+    .stat:nth-child(n+3) { margin-top:4px; }
   }
 
   /* shops */
   .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  /* top bar: stays on screen while scrolling */
+  .topbar { position:sticky; top:0; z-index:30; background:var(--hero); color:var(--hero-text); border-bottom:1px solid var(--hero-line); }
+  .bar { display:flex; align-items:center; gap:14px; height:60px; }
+  .bar .brand { gap:10px; flex:none; }
+  .bar .brand svg { width:34px; height:34px; filter:none; }
+  .bar h1 { font-size:1.2rem; }
+  .gamenav { display:flex; gap:2px; margin-left:18px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .gamenav::-webkit-scrollbar { display:none; }
+  .gamenav button, .drawer .glist button { font:inherit; cursor:pointer; background:none; border:0; color:inherit; }
+  .gamenav button { position:relative; padding:20px 12px; font-size:.92rem; font-weight:600; color:var(--hero-muted); white-space:nowrap; }
+  .gamenav button:hover { color:var(--hero-text); }
+  .gamenav button.active { color:var(--hero-text); }
+  .gamenav button.active::after { content:""; position:absolute; left:12px; right:12px; bottom:0; height:3px; border-radius:3px 3px 0 0; background:var(--accent); }
+  .iconbtn, .fbtn { font:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px; color:var(--hero-text); background:var(--hero-hover); border:1px solid var(--hero-line); border-radius:999px; height:38px; }
+  .iconbtn { width:38px; justify-content:center; padding:0; }
+  .fbtn { padding:0 16px 0 12px; font-weight:650; font-size:.9rem; margin-left:auto; }
+  .gamenav + .fbtn { margin-left:0; }
+  .fbtn[aria-expanded=true] { border-color:var(--accent); }
+  .fbtn b { background:var(--accent); color:#fff; border-radius:999px; font-size:.72rem; min-width:18px; height:18px; line-height:18px; text-align:center; padding:0 5px; }
+  .fbtn b:empty { display:none; }
+  .iconbtn svg, .fbtn svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+  .search.topsearch { flex:none; width:150px; min-width:0; transition:width .2s; }
+  .search.topsearch:focus-within { width:300px; }
+  .topsearch input { height:36px; border-radius:999px; background:var(--hero-hover); border-color:var(--hero-line); color:var(--hero-text); }
+  .topsearch input::placeholder { color:var(--hero-muted); }
+  .topsearch svg { stroke:var(--hero-muted); }
+  .burger { display:none; }
+  .fpanel { position:absolute; top:100%; right:0; left:0; }
+  .fpanel .wrap { display:flex; justify-content:flex-end; }
+  .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
+  .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .fpanel .row select { flex:1; min-width:0; }
+  .fpanel .actions { display:flex; gap:8px; align-items:center; }
+  .fpanel .actions .sub { margin-left:auto; }
+  .scrim { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.5); }
+  .drawer { position:fixed; top:0; bottom:0; left:0; z-index:50; width:min(320px,86vw); background:var(--surface); color:var(--text); transform:translateX(-102%); transition:transform .2s; overflow-y:auto; box-shadow:var(--shadow-hover); }
+  .drawer.open { transform:none; }
+  .drawer .dtop { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .drawer .dtop b { font-size:1rem; }
+  .drawer .dtop .iconbtn { color:var(--text); background:none; border-color:var(--line); }
+  .drawer h3 { margin:18px 20px 6px; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .drawer .glist button { display:flex; width:100%; justify-content:space-between; align-items:center; text-align:left; padding:14px 20px; font-size:1rem; font-weight:600; border-left:4px solid transparent; }
+  .drawer .glist button small { color:var(--muted); font-weight:500; }
+  .drawer .glist button.active { border-left-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+  @media (max-width:860px) {
+    .burger { display:inline-flex; } .gamenav { display:none; }
+    .search.topsearch, .search.topsearch:focus-within { flex:1; width:auto; } .gamenav + .fbtn { margin-left:0; }
+    .bar { gap:10px; } .bar h1 { font-size:1.05rem; } .gamenav + .fbtn { margin-left:auto; }
+  }
+  @media (min-width:861px) { .drawer, .scrim { display:none; } }
+  @media (max-width:560px) { .bar .brand h1 { display:none; } }
+  @media (max-width:480px) { .fbtn span.t { display:none; } .fbtn { padding:0 10px; } .bar .brand h1 { font-size:.98rem; } }
+  details.shopsbox { margin:18px 0 0; }
+  details.shopsbox > summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:650; color:var(--muted); }
+  details.shopsbox > summary::-webkit-details-marker { display:none; }
+  details.shopsbox > summary::before { content:"▸"; font-size:.7rem; transition:transform .15s; }
+  details.shopsbox[open] > summary::before { transform:rotate(90deg); }
+  details.shopsbox .shops { margin-top:10px; }
   .shops { display:flex; gap:8px; flex-wrap:wrap; }
   .chip { font:inherit; color:inherit; text-align:left; cursor:pointer; display:flex; gap:9px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px 8px 10px; font-size:.85rem; box-shadow:var(--shadow); transition:border-color .15s; max-width:100%; }
   .chip:hover { border-color:var(--muted); }
@@ -146,7 +215,11 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
 
   /* toolbar */
-  .controls { position:sticky; top:0; z-index:2; display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 0; margin-top:14px; background:color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px; margin-top:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .controls .btn { height:38px; padding:0 18px; border-radius:10px; font:inherit; font-size:.9rem; font-weight:650; cursor:pointer; }
+  .controls .btn.go { background:var(--accent); color:#fff; border:1px solid var(--accent); }
+  .controls .btn.reset { background:transparent; color:var(--muted); border:1px solid var(--line); }
+  .controls .sub { margin-left:auto; }
   .search { position:relative; flex:1; min-width:200px; }
   .search svg { position:absolute; left:11px; top:50%; width:16px; height:16px; transform:translateY(-50%); fill:none; stroke:var(--muted); stroke-width:2; stroke-linecap:round; pointer-events:none; }
   input[type=search], select { font:inherit; font-size:.9rem; color:inherit; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 11px; height:38px; }
@@ -263,13 +336,50 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </style>
 </head>
 <body>
+<div class="topbar">
+  <div class="wrap bar">
+    <button type="button" class="iconbtn burger" id="burger" aria-label="Games menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="brand">${LOGO_SVG}<h1>Collectible<span>Market</span></h1></div>
+    <div class="search topsearch">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="Search…" aria-label="Search products">
+    </div>
+    <nav class="gamenav" id="games" aria-label="Games"></nav>
+    <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
+    ${accountLink}
+  </div>
+  <div class="fpanel" id="fpanel" hidden><div class="wrap">
+  <form class="controls" id="filters" autocomplete="off">
+    <div class="row">
+      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
+      <select id="sort" aria-label="Sort">
+        <option value="shop">Group by shop, in stock first</option>
+        <option value="price-asc">Price low → high</option>
+        <option value="price-desc">Price high → low</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
+      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn go">Filter</button>
+      <button type="reset" class="btn reset" id="reset">Reset</button>
+      <span class="sub" id="count"></span>
+    </div>
+  </form>
+  </div></div>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Games menu">
+  <div class="dtop"><button type="button" class="iconbtn" id="dclose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><b>Collectible<span style="color:var(--accent)">Market</span></b></div>
+  <h3>Games</h3>
+  <div class="glist" id="gdrawer"></div>
+</aside>
 <header class="hero">
   <div class="wrap">
-    <div class="brand">
-      ${LOGO_SVG}
-      <div><h1>Collectible<span>Market</span></h1><div class="tagline">Pokémon TCG availability tracker</div></div>
-      ${accountLink}
-    </div>
+    <div class="tagline" style="margin-top:14px">Trading card game availability tracker</div>
     <p class="meta">Checked <b>${esc(when)}</b> (Sofia time) · search phrase <b>“${esc(summary.query)}”</b></p>
     <div class="stats">
       <div class="stat"><b id="s-total">0</b><span>products</span></div>
@@ -281,25 +391,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </header>
 
 <main class="wrap" id="list-view">
-  <div class="section-label">Shops</div>
-  <div class="shops" id="shops"></div>
-
-  <div class="controls">
-    <div class="search">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
-    </div>
-    <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
-    <select id="sort" aria-label="Sort">
-      <option value="shop">Group by shop, in stock first</option>
-      <option value="price-asc">Price low → high</option>
-      <option value="price-desc">Price high → low</option>
-      <option value="name">Name</option>
-    </select>
-    <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
-    <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
-    <span class="sub" id="count"></span>
-  </div>
+  <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
   <div id="results"></div>
 
@@ -359,50 +451,96 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
   function priceText(p) { return p.price === null ? '—' : p.price.toFixed(2) + ' ' + p.currency; }
 
-  // totals
-  $('s-total').textContent = products.length;
-  $('s-stock').textContent = products.filter(function (p) { return p.inStock === true; }).length;
-  $('s-oos').textContent = products.filter(function (p) { return p.inStock === false; }).length;
-  $('s-new').textContent = products.filter(function (p) { return p.isNew; }).length;
-
-  // shop status chips (click to filter) + filter options
-  data.shops.forEach(function (s) {
-    var chip = el('button', 'chip ' + s.status);
-    chip.style.setProperty('--shop', shopColor(s.name));
-    chip.type = 'button';
-    chip.dataset.shop = s.name;
-    chip.title = s.status === 'ok' ? 'Show only ' + s.name : s.status;
-    chip.appendChild(el('span', 'dot'));
-    var text = el('span');
-    text.appendChild(el('b', '', s.name));
-    var detail = s.status === 'ok'
-      ? s.found + ' found' + (s.scanned !== null ? ' of ' + s.scanned + ' on page' : '')
-      : s.status + ': ' + s.message;
-    text.appendChild(el('div', 'sub', detail));
-    if (s.status === 'ok' && s.message) text.appendChild(el('div', 'sub', s.message));
-    chip.appendChild(text);
-    chip.addEventListener('click', function () {
-      $('shop').value = $('shop').value === s.name ? '' : s.name;
-      render();
+  // the menu: one tab per game ('' = all games)
+  var game = '';
+  var games = data.games || [];
+  function inGame(x) { return !game || x.game === game; }
+  function setGame(slug) { game = slug; renderTabs(); buildShops(); render(); closeDrawer(); }
+  function renderTabs() {
+    ['games', 'gdrawer'].forEach(function (id) {
+      var box = $(id);
+      box.textContent = '';
+      [{ slug: '', name: 'All games' }].concat(games).forEach(function (g) {
+        var b = el('button', g.slug === game ? 'active' : '', g.name);
+        b.type = 'button';
+        if (id === 'gdrawer') {
+          var n = products.filter(function (p) { return !g.slug || p.game === g.slug; }).length;
+          b.appendChild(el('small', '', String(n)));
+        }
+        b.addEventListener('click', function () { setGame(g.slug); });
+        box.appendChild(b);
+      });
     });
-    $('shops').appendChild(chip);
-    var opt = el('option', '', s.name); opt.value = s.name; $('shop').appendChild(opt);
+  }
+  function closeDrawer() {
+    $('drawer').classList.remove('open'); $('scrim').hidden = true; $('burger').setAttribute('aria-expanded', 'false');
+  }
+  function setPanel(open) {
+    $('fpanel').hidden = !open; $('fbtn').setAttribute('aria-expanded', String(open));
+  }
+  $('burger').addEventListener('click', function () {
+    $('drawer').classList.add('open'); $('scrim').hidden = false; $('burger').setAttribute('aria-expanded', 'true');
   });
+  $('dclose').addEventListener('click', closeDrawer);
+  $('scrim').addEventListener('click', closeDrawer);
+  $('fbtn').addEventListener('click', function (e) { e.stopPropagation(); setPanel($('fpanel').hidden); });
+  $('fpanel').addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('click', function () { setPanel(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDrawer(); setPanel(false); } });
 
-  // shops that cannot be checked automatically: a link to their page, to check by hand
-  (data.manualShops || []).forEach(function (s) {
-    var page = safeUrl(s.page);
-    var chip = el(page ? 'a' : 'span', 'chip manual');
-    if (page) { chip.href = page; chip.target = '_blank'; chip.rel = 'noreferrer'; }
-    chip.title = 'Not checked automatically – open the shop to check it yourself';
-    chip.appendChild(el('span', 'dot'));
-    var text = el('span');
-    text.appendChild(el('b', '', s.name));
-    text.appendChild(el('div', 'sub', 'Check manually' + (page ? ' ↗' : '')));
-    if (s.note) text.appendChild(el('div', 'sub', s.note));
-    chip.appendChild(text);
-    $('shops').appendChild(chip);
-  });
+  function updateTotals() {
+    var inScope = products.filter(inGame);
+    $('s-total').textContent = inScope.length;
+    $('s-stock').textContent = inScope.filter(function (p) { return p.inStock === true; }).length;
+    $('s-oos').textContent = inScope.filter(function (p) { return p.inStock === false; }).length;
+    $('s-new').textContent = inScope.filter(function (p) { return p.isNew; }).length;
+  }
+
+  // shop status chips (click to filter) + filter options, for the selected game
+  function buildShops() {
+    $('shops').textContent = '';
+    $('shop').textContent = '';
+    var all = el('option', '', 'All shops'); all.value = ''; $('shop').appendChild(all);
+    updateTotals();
+    $('shops-sum').textContent = 'Shops (' + (data.shops.filter(inGame).length + (data.manualShops || []).filter(inGame).length) + ')';
+    data.shops.filter(inGame).forEach(function (s) {
+      var chip = el('button', 'chip ' + s.status);
+      chip.style.setProperty('--shop', shopColor(s.name));
+      chip.type = 'button';
+      chip.dataset.shop = s.name;
+      chip.title = s.status === 'ok' ? 'Show only ' + s.name : s.status;
+      chip.appendChild(el('span', 'dot'));
+      var text = el('span');
+      text.appendChild(el('b', '', s.name));
+      var detail = s.status === 'ok'
+        ? s.found + ' found' + (s.scanned !== null ? ' of ' + s.scanned + ' on page' : '')
+        : s.status + ': ' + s.message;
+      text.appendChild(el('div', 'sub', detail));
+      if (s.status === 'ok' && s.message) text.appendChild(el('div', 'sub', s.message));
+      chip.appendChild(text);
+      chip.addEventListener('click', function () {
+        $('shop').value = $('shop').value === s.name ? '' : s.name;
+        render();
+      });
+      $('shops').appendChild(chip);
+      var opt = el('option', '', s.name); opt.value = s.name; $('shop').appendChild(opt);
+    });
+
+    // shops that cannot be checked automatically: a link to their page, to check by hand
+    (data.manualShops || []).filter(inGame).forEach(function (s) {
+      var page = safeUrl(s.page);
+      var chip = el(page ? 'a' : 'span', 'chip manual');
+      if (page) { chip.href = page; chip.target = '_blank'; chip.rel = 'noreferrer'; }
+      chip.title = 'Not checked automatically – open the shop to check it yourself';
+      chip.appendChild(el('span', 'dot'));
+      var text = el('span');
+      text.appendChild(el('b', '', s.name));
+      text.appendChild(el('div', 'sub', 'Check manually' + (page ? ' ↗' : '')));
+      if (s.note) text.appendChild(el('div', 'sub', s.note));
+      chip.appendChild(text);
+      $('shops').appendChild(chip);
+    });
+  }
 
   function rank(p) { return p.inStock === true ? 0 : p.inStock === null ? 1 : 2; }
   var sorters = {
@@ -680,6 +818,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     var shop = $('shop').value;
     var sort = $('sort').value;
     var list = products.filter(function (p) {
+      if (!inGame(p)) return false;
       if (shop && p.shop !== shop) return false;
       if ($('instock').checked && p.inStock !== true) return false;
       if ($('onlynew').checked && !p.isNew) return false;
@@ -727,12 +866,16 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       out.appendChild(all);
     }
     $('count').textContent = list.length + ' shown';
+    var active = (shop ? 1 : 0) + (sort !== 'shop' ? 1 : 0) + ($('instock').checked ? 1 : 0) + ($('onlynew').checked ? 1 : 0);
+    $('fcount').textContent = active ? String(active) : '';
     refreshPicks();
   }
 
-  ['q', 'shop', 'sort', 'instock', 'onlynew'].forEach(function (id) {
-    $(id).addEventListener(id === 'q' ? 'input' : 'change', render);
-  });
+  $('q').addEventListener('input', render);
+  $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
+  $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
+  renderTabs();
+  buildShops();
   render();
   route();
 })();

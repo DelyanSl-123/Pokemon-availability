@@ -21,7 +21,7 @@ describe('normalizeShopInput', () => {
       name: 'My shop',
       searchUrl: 'https://example.com/?s={query}',
     });
-    expect(shop).toEqual({ name: 'My shop', baseUrl: 'https://example.com', searchUrl: 'https://example.com/?s={query}' });
+    expect(shop).toEqual({ name: 'My shop', baseUrl: 'https://example.com', searchUrl: 'https://example.com/?s={query}', game: 'pokemon' });
   });
 
   it('accepts a fixed category page URL without {query}', () => {

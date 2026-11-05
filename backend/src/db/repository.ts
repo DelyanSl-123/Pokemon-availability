@@ -1,5 +1,6 @@
 import type { DB } from './connection';
 import type { ExtractedProduct, RunSummary, Settings, Shop } from '../types';
+import { DEFAULT_GAME, type Game } from '../shops/games';
 
 /* ---------------- shops ---------------- */
 
@@ -10,6 +11,7 @@ interface ShopRow {
   search_url: string;
   enabled: number;
   respect_robots: number;
+  game: string;
 }
 
 const toShop = (r: ShopRow): Shop => ({
@@ -19,6 +21,7 @@ const toShop = (r: ShopRow): Shop => ({
   searchUrl: r.search_url,
   enabled: r.enabled === 1,
   respectRobots: r.respect_robots === 1,
+  game: r.game,
 });
 
 export function listShops(db: DB): Shop[] {
@@ -32,11 +35,11 @@ export function getShop(db: DB, id: number): Shop | undefined {
 
 export function createShop(
   db: DB,
-  input: { name: string; baseUrl: string; searchUrl: string; respectRobots?: boolean },
+  input: { name: string; baseUrl: string; searchUrl: string; respectRobots?: boolean; game?: string },
 ): Shop {
   const info = db
-    .prepare('INSERT INTO shops (name, base_url, search_url, respect_robots) VALUES (?, ?, ?, ?)')
-    .run(input.name, input.baseUrl, input.searchUrl, input.respectRobots === false ? 0 : 1);
+    .prepare('INSERT INTO shops (name, base_url, search_url, respect_robots, game) VALUES (?, ?, ?, ?, ?)')
+    .run(input.name, input.baseUrl, input.searchUrl, input.respectRobots === false ? 0 : 1, input.game ?? DEFAULT_GAME);
   return getShop(db, Number(info.lastInsertRowid))!;
 }
 
@@ -60,6 +63,75 @@ export function updateShop(
 
 export function deleteShop(db: DB, id: number): boolean {
   return db.prepare('DELETE FROM shops WHERE id = ?').run(id).changes > 0;
+}
+
+/* ---------------- games ---------------- */
+
+interface GameRow {
+  slug: string;
+  name: string;
+  keywords: string;
+  query: string;
+  enabled: number;
+  builtin: number;
+}
+
+const toGame = (r: GameRow): Game => ({
+  slug: r.slug,
+  name: r.name,
+  keywords: r.keywords,
+  query: r.query,
+  enabled: r.enabled === 1,
+  builtin: r.builtin === 1,
+});
+
+/** Built-in games first (in their fixed order), then the added ones by name. */
+export function listGames(db: DB): Game[] {
+  return (db.prepare('SELECT * FROM games ORDER BY builtin DESC, rowid').all() as GameRow[]).map(toGame);
+}
+
+export function getGame(db: DB, slug: string): Game | undefined {
+  const row = db.prepare('SELECT * FROM games WHERE slug = ?').get(slug) as GameRow | undefined;
+  return row ? toGame(row) : undefined;
+}
+
+export function createGame(db: DB, g: { slug: string; name: string; keywords: string; query: string }): Game {
+  db.prepare('INSERT INTO games (slug, name, keywords, query, enabled, builtin) VALUES (?, ?, ?, ?, 1, 0)').run(
+    g.slug,
+    g.name,
+    g.keywords,
+    g.query,
+  );
+  return getGame(db, g.slug)!;
+}
+
+export function updateGame(
+  db: DB,
+  slug: string,
+  patch: Partial<Pick<Game, 'name' | 'keywords' | 'query' | 'enabled'>>,
+): Game | undefined {
+  const cur = getGame(db, slug);
+  if (!cur) return undefined;
+  const next = { ...cur, ...patch };
+  db.prepare('UPDATE games SET name = ?, keywords = ?, query = ?, enabled = ? WHERE slug = ?').run(
+    next.name,
+    next.keywords,
+    next.query,
+    next.enabled ? 1 : 0,
+    slug,
+  );
+  return getGame(db, slug);
+}
+
+/** Deletes an added game together with its shop pages and products. Built-in games cannot be deleted. */
+export function deleteGame(db: DB, slug: string): boolean {
+  return db.transaction(() => {
+    const g = getGame(db, slug);
+    if (!g || g.builtin) return false;
+    db.prepare('DELETE FROM shops WHERE game = ?').run(slug); // products cascade
+    db.prepare('DELETE FROM games WHERE slug = ?').run(slug);
+    return true;
+  })();
 }
 
 /* ---------------- settings ---------------- */
@@ -96,12 +168,14 @@ interface ProductRow {
   image_url: string | null;
   first_seen: string;
   last_seen: string;
+  game: string;
 }
 
 export interface StoredProduct {
   id: number;
   shopId: number;
   shopName: string;
+  game: string;
   url: string;
   title: string;
   price: number | null;
@@ -140,18 +214,22 @@ export function upsertProduct(
   return { isNew: false, backInStock: existing.in_stock === 0 && p.inStock === true };
 }
 
-export function listProducts(db: DB, filter: { shopId?: number; inStockOnly?: boolean } = {}): StoredProduct[] {
+export function listProducts(db: DB, filter: { shopId?: number; game?: string; inStockOnly?: boolean } = {}): StoredProduct[] {
   const where: string[] = [];
   const params: unknown[] = [];
   if (filter.shopId !== undefined) {
     where.push('p.shop_id = ?');
     params.push(filter.shopId);
   }
+  if (filter.game !== undefined) {
+    where.push('s.game = ?');
+    params.push(filter.game);
+  }
   if (filter.inStockOnly) where.push('p.in_stock = 1');
 
   const rows = db
     .prepare(
-      `SELECT p.*, s.name AS shop_name FROM products p JOIN shops s ON s.id = p.shop_id
+      `SELECT p.*, s.name AS shop_name, s.game AS game FROM products p JOIN shops s ON s.id = p.shop_id
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
        ORDER BY p.last_seen DESC, p.id DESC`,
     )
@@ -161,6 +239,7 @@ export function listProducts(db: DB, filter: { shopId?: number; inStockOnly?: bo
     id: r.id,
     shopId: r.shop_id,
     shopName: r.shop_name,
+    game: r.game,
     url: r.url,
     title: r.title,
     price: r.price,
