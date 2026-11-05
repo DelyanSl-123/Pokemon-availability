@@ -37,7 +37,28 @@ export function createRateLimiter(limit: number, windowMs: number, now: () => nu
   };
 }
 
+/** Counts failed attempts per key (e.g. an e-mail) and locks the key for the rest of the window. */
+export function createLockout(maxFailures: number, windowMs: number, now: () => number = Date.now) {
+  const fails = new Map<string, { count: number; resetAt: number }>();
+  const current = (key: string) => {
+    const f = fails.get(key);
+    if (f && f.resetAt <= now()) fails.delete(key);
+    return fails.get(key);
+  };
+  return {
+    isLocked: (key: string) => (current(key)?.count ?? 0) >= maxFailures,
+    fail(key: string) {
+      const f = current(key);
+      if (f) f.count += 1;
+      else fails.set(key, { count: 1, resetAt: now() + windowMs });
+    },
+    reset: (key: string) => void fails.delete(key),
+  };
+}
+
 export interface SecurityOptions {
+  /** Wrong passwords allowed per account within 15 minutes before it is locked for the rest of that time (default 5). */
+  loginFailuresPerAccount?: number;
   /** Requests per client address per minute for the whole app (default 120). */
   requestsPerMinute?: number;
   /** Sign-in / register attempts per client address per 10 minutes (default 15). */
@@ -61,7 +82,7 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
     if (!general.allow(req.ip)) {
       return reply.header('Retry-After', '60').status(429).send({ error: 'Too many requests, slow down' });
     }
-    if (req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/resend', '/api/auth/activate'].includes(path) && !logins.allow(req.ip)) {
+    if (req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/resend', '/api/auth/activate', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email'].includes(path) && !logins.allow(req.ip)) {
       return reply.header('Retry-After', '600').status(429).send({ error: 'Too many sign-in attempts, try again later' });
     }
   });

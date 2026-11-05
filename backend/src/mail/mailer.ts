@@ -73,17 +73,50 @@ export function createMailer(cfg: MailConfig): Mailer {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
+function actionEmail(o: { to: string; subject: string; hello: string; intro: string; button: string; link: string; note: string }): Message {
+  const text = `${o.hello}\n\n${o.intro}\n\n${o.link}\n\n${o.note}`;
+  const html =
+    `<p>${esc(o.hello)}</p><p>${esc(o.intro)}</p>` +
+    `<p><a href="${esc(o.link)}" style="display:inline-block;padding:10px 18px;background:#e3350d;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">${esc(o.button)}</a></p>` +
+    `<p>Or copy this link into your browser:<br>${esc(o.link)}</p><p style="color:#666">${esc(o.note)}</p>`;
+  return { to: o.to, subject: o.subject, text, html };
+}
+
+const greeting = (firstName: string | null) => (firstName ? `Hello ${firstName},` : 'Hello,');
+
 /** The activation e-mail: a link that is valid for `hours` hours. */
 export function buildActivationEmail(to: string, firstName: string | null, link: string, hours: number): Message {
-  const hello = firstName ? `Hello ${firstName},` : 'Hello,';
-  const text =
-    `${hello}\n\nThank you for registering at CollectibleMarket.\n` +
-    `Open this link to activate your account (valid for ${hours} hours):\n\n${link}\n\n` +
-    `If you did not register, you can ignore this message.`;
-  const html =
-    `<p>${esc(hello)}</p><p>Thank you for registering at CollectibleMarket.</p>` +
-    `<p><a href="${esc(link)}" style="display:inline-block;padding:10px 18px;background:#e3350d;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Activate my account</a></p>` +
-    `<p>Or copy this link into your browser (valid for ${hours} hours):<br>${esc(link)}</p>` +
-    `<p style="color:#666">If you did not register, you can ignore this message.</p>`;
-  return { to, subject: 'Activate your CollectibleMarket account', text, html };
+  return actionEmail({
+    to,
+    subject: 'Activate your CollectibleMarket account',
+    hello: greeting(firstName),
+    intro: `Thank you for registering at CollectibleMarket. Open this link to activate your account (valid for ${hours} hours):`,
+    button: 'Activate my account',
+    link,
+    note: 'If you did not register, you can ignore this message.',
+  });
+}
+
+export function buildPasswordResetEmail(to: string, firstName: string | null, link: string, hours: number): Message {
+  return actionEmail({
+    to,
+    subject: 'Reset your CollectibleMarket password',
+    hello: greeting(firstName),
+    intro: `We received a request to reset your password. Open this link to choose a new one (valid for ${hours} hour${hours === 1 ? '' : 's'}):`,
+    button: 'Choose a new password',
+    link,
+    note: 'If you did not ask for this, ignore this message: your password stays the same.',
+  });
+}
+
+export function buildEmailChangeEmail(to: string, firstName: string | null, link: string, hours: number): Message {
+  return actionEmail({
+    to,
+    subject: 'Confirm your new CollectibleMarket email address',
+    hello: greeting(firstName),
+    intro: `Open this link to confirm that this is your new email address for CollectibleMarket (valid for ${hours} hours):`,
+    button: 'Confirm email address',
+    link,
+    note: 'If you did not ask for this, ignore this message: the address on the account stays the same.',
+  });
 }

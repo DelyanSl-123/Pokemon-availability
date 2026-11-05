@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensureAdmin } from './auth/users';
+import { ensureAdmin, purgeUnactivated } from './auth/users';
+import { captchaFromEnv } from './api/captcha';
 import { createMailer, mailConfigFromEnv } from './mail/mailer';
 import { openDb } from './db/connection';
 import { createShop, getSettings, listShops } from './db/repository';
@@ -56,8 +57,12 @@ async function main() {
     secureCookies: process.env.COOKIE_SECURE === 'true',
     trustProxy: process.env.TRUST_PROXY === 'true',
     mailer: createMailer(mailConfigFromEnv()),
+    captcha: captchaFromEnv(),
     appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,
   });
+
+  // Registrations whose activation link was never opened are removed after 24 hours.
+  setInterval(() => purgeUnactivated(db), 60 * 60 * 1000).unref();
 
   const settings = getSettings(db, defaults);
   scheduler.start(settings.cron);
