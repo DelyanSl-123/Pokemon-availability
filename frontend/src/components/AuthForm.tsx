@@ -18,6 +18,9 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [profile, setProfile] = useState({ firstName: '', lastName: '', city: '', address: '', phone: '' });
+  const setField = (k: keyof typeof profile) => (e: { target: { value: string } }) =>
+    setProfile({ ...profile, [k]: e.target.value });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +34,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
     }
     setBusy(true);
     try {
-      onSignedIn(await (mode === 'login' ? api.login({ email, password }) : api.register({ email, password, confirmPassword: confirm })));
+      onSignedIn(await (mode === 'login' ? api.login({ email, password }) : api.register({ email, password, confirmPassword: confirm, ...profile, phone: profile.phone.trim() || undefined })));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -52,6 +55,38 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
         <p className="sub">CollectibleMarket · Pokémon TCG availability tracker</p>
         {error && <div className="banner error">{error}</div>}
         <form className="grid" onSubmit={submit}>
+          {mode === 'register' && (
+            <>
+              <label>
+                First name
+                <input required maxLength={60} autoComplete="given-name" value={profile.firstName} onChange={setField('firstName')} />
+              </label>
+              <label>
+                Last name
+                <input required maxLength={60} autoComplete="family-name" value={profile.lastName} onChange={setField('lastName')} />
+              </label>
+              <label>
+                City
+                <input required maxLength={80} autoComplete="address-level2" value={profile.city} onChange={setField('city')} />
+              </label>
+              <label>
+                Address
+                <input required maxLength={200} autoComplete="street-address" value={profile.address} onChange={setField('address')} />
+              </label>
+              <label>
+                Phone <span className="sub">(optional)</span>
+                <input
+                  type="tel"
+                  maxLength={20}
+                  pattern="\+?[0-9][0-9 ()\-]{5,19}"
+                  title="Digits, spaces, + ( ) -"
+                  autoComplete="tel"
+                  value={profile.phone}
+                  onChange={setField('phone')}
+                />
+              </label>
+            </>
+          )}
           <label>
             Email
             <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
