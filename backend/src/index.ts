@@ -2,6 +2,7 @@ import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ensureAdmin } from './auth/users';
+import { createMailer, mailConfigFromEnv } from './mail/mailer';
 import { openDb } from './db/connection';
 import { createShop, getSettings, listShops } from './db/repository';
 import { createScheduler } from './core/scheduler';
@@ -54,6 +55,8 @@ async function main() {
     staticDir: fs.existsSync(frontendDist) ? frontendDist : undefined,
     secureCookies: process.env.COOKIE_SECURE === 'true',
     trustProxy: process.env.TRUST_PROXY === 'true',
+    mailer: createMailer(mailConfigFromEnv()),
+    appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,
   });
 
   const settings = getSettings(db, defaults);
@@ -62,6 +65,7 @@ async function main() {
   await app.listen({ port, host: process.env.HOST ?? '127.0.0.1' });
   console.log(`Pokemon tracker API on http://127.0.0.1:${port}`);
   console.log(`Daily check: "${settings.cron}" (${timezone})`);
+  if (!process.env.SMTP_HOST) console.log('SMTP_HOST not set: activation links are printed here instead of emailed.');
 }
 
 main().catch((e) => {

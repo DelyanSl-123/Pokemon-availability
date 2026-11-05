@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
 import { buildServer } from '../../src/api/server';
+import type { Message } from '../../src/mail/mailer';
 
 const PROFILE = { firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', acceptTerms: true };
 const ADMIN = { email: 'admin@test.com', password: 'admin-password' };
@@ -13,8 +14,10 @@ async function setup() {
   const scheduler = { start: vi.fn(), stop: vi.fn() };
   const service = { isRunning: () => false, run: vi.fn() };
   const defaults = { cron: '0 9 * * *', query: 'pokemon tcg' };
-  const app = await buildServer({ db, service: service as never, scheduler, defaults, security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
-  return { app, scheduler, service };
+  const mails: Message[] = [];
+  const mailer = { send: vi.fn(async (m: Message) => (mails.push(m), { sent: true })) };
+  const app = await buildServer({ db, service: service as never, scheduler, defaults, mailer, appUrl: 'https://app.test/', security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
+  return { app, scheduler, service, mails, mailer };
 }
 
 /** Signs in and returns the Cookie header to send with later requests. */
@@ -96,17 +99,34 @@ describe('API accounts', () => {
   });
 
   it('registers a regular user who can view but not manage', async () => {
-    const { app, service } = await setup();
+    const { app, service, mails } = await setup();
     const reg = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
       payload: { email: ' Viewer@Test.com ', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x', ...PROFILE },
     });
     expect(reg.statusCode).toBe(201);
-    expect(reg.json().user).toMatchObject({ email: 'viewer@test.com', role: 'user' });
-    expect(JSON.stringify(reg.json())).not.toContain('password');
-    const headers = { cookie: String(reg.headers['set-cookie']).split(';')[0] };
-    expect(String(reg.headers['set-cookie'])).toContain('HttpOnly');
+    expect(reg.json()).toEqual({ email: 'viewer@test.com', emailSent: true });
+    // nobody is signed in by registering: the account must be activated first
+    expect(reg.headers['set-cookie']).toBeUndefined();
+    const credentials = { email: 'viewer@test.com', password: 'Sunny-Day#2024x' };
+    const early = await app.inject({ method: 'POST', url: '/api/auth/login', payload: credentials });
+    expect(early.statusCode).toBe(403);
+    expect(early.json().code).toBe('not_activated');
+
+    expect(mails).toHaveLength(1);
+    expect(mails[0].to).toBe('viewer@test.com');
+    const token = /\?activate=([\w-]+)/.exec(mails[0].text)![1];
+    expect(mails[0].text).toContain('https://app.test/?activate=');
+    expect((await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token: 'x'.repeat(43) } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token } })).statusCode).toBe(400); // single use
+
+    const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: credentials });
+    expect(login.statusCode).toBe(200);
+    expect(JSON.stringify(login.json())).not.toContain('password');
+    const headers = { cookie: String(login.headers['set-cookie']).split(';')[0] };
+    expect(String(login.headers['set-cookie'])).toContain('HttpOnly');
 
     expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).json().user.role).toBe('user');
     expect((await app.inject({ method: 'GET', url: '/api/products', headers })).statusCode).toBe(200);
@@ -120,6 +140,23 @@ describe('API accounts', () => {
     expect((await app.inject({ method: 'GET', url: '/api/settings', headers })).statusCode).toBe(403);
     expect((await app.inject({ method: 'PUT', url: '/api/settings', headers, payload: { query: 'abc' } })).statusCode).toBe(403);
     expect(service.run).not.toHaveBeenCalled();
+  });
+
+  it('resends the activation link only for accounts that are not activated', async () => {
+    const { app, mails } = await setup();
+    const payload = { email: 'new@test.com', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x', ...PROFILE };
+    await app.inject({ method: 'POST', url: '/api/auth/register', payload });
+    const resend = (email: string) => app.inject({ method: 'POST', url: '/api/auth/resend', payload: { email } });
+    expect((await resend('new@test.com')).statusCode).toBe(200);
+    expect(mails).toHaveLength(2);
+    const first = /activate=([\w-]+)/.exec(mails[0].text)![1];
+    const second = /activate=([\w-]+)/.exec(mails[1].text)![1];
+    // the newest link replaces the older one
+    expect((await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token: first } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token: second } })).statusCode).toBe(200);
+    // same answer for unknown, activated and the admin accounts, and nothing is sent
+    for (const email of ['nobody@test.com', 'new@test.com', ADMIN.email]) expect((await resend(email)).json()).toEqual({ ok: true });
+    expect(mails).toHaveLength(2);
   });
 
   it('never lets registration create or take over the admin account', async () => {

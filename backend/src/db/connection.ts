@@ -55,6 +55,12 @@ export function openDb(file: string): DB {
       created_at    TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      token_hash TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       token_hash TEXT PRIMARY KEY,
       user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -66,6 +72,11 @@ export function openDb(file: string): DB {
   const userColumns = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
   for (const col of ['first_name', 'last_name', 'city', 'address', 'phone', 'terms_accepted_at']) {
     if (!userColumns.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
+  }
+  // Accounts that existed before activation links were introduced count as activated.
+  if (!userColumns.has('email_verified_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');
+    db.exec(`UPDATE users SET email_verified_at = created_at`);
   }
   return db;
 }

@@ -14,6 +14,7 @@ export interface User {
   city: string | null;
   address: string | null;
   phone: string | null;
+  emailVerified: boolean;
 }
 
 /** Details asked on the registration form (phone is optional). */
@@ -38,6 +39,7 @@ interface UserRow {
   city: string | null;
   address: string | null;
   phone: string | null;
+  email_verified_at: string | null;
 }
 
 const SESSION_DAYS = 30;
@@ -53,6 +55,7 @@ const toUser = (r: UserRow): User => ({
   city: r.city,
   address: r.address,
   phone: r.phone,
+  emailVerified: r.email_verified_at !== null,
 });
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -101,9 +104,9 @@ export function ensureAdmin(db: DB, email: string, password?: string): User | nu
     const existing = findRow(db, normalized);
     if (existing) {
       if (password) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), existing.id);
-      db.prepare(`UPDATE users SET role = 'admin' WHERE id = ?`).run(existing.id);
+      db.prepare(`UPDATE users SET role = 'admin', email_verified_at = COALESCE(email_verified_at, datetime('now')) WHERE id = ?`).run(existing.id);
     } else if (password) {
-      db.prepare(`INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'admin')`).run(normalized, hashPassword(password));
+      db.prepare(`INSERT INTO users (email, password_hash, role, email_verified_at) VALUES (?, ?, 'admin', datetime('now'))`).run(normalized, hashPassword(password));
     } else {
       return null;
     }
@@ -132,4 +135,33 @@ export function userForSession(db: DB, token: string): User | null {
 
 export function deleteSession(db: DB, token: string): void {
   db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
+}
+
+export const ACTIVATION_HOURS = 24;
+
+/** Creates an activation token for the account (older ones are dropped); only its hash is stored. */
+export function createActivationToken(db: DB, userId: number): string {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const expires = new Date(Date.now() + ACTIVATION_HOURS * 3600 * 1000).toISOString();
+  db.prepare('DELETE FROM email_verifications WHERE user_id = ? OR expires_at < ?').run(userId, new Date().toISOString());
+  db.prepare('INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(sha256(token), userId, expires);
+  return token;
+}
+
+/** Activates the account the token belongs to. Returns false for an unknown, used or expired token. */
+export function activateWithToken(db: DB, token: string): boolean {
+  return db.transaction(() => {
+    const row = db
+      .prepare('SELECT user_id FROM email_verifications WHERE token_hash = ? AND expires_at > ?')
+      .get(sha256(token), new Date().toISOString()) as { user_id: number } | undefined;
+    if (!row) return false;
+    db.prepare(`UPDATE users SET email_verified_at = COALESCE(email_verified_at, datetime('now')) WHERE id = ?`).run(row.user_id);
+    db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(row.user_id);
+    return true;
+  })();
+}
+
+export function findUserByEmail(db: DB, email: string): User | null {
+  const row = findRow(db, email);
+  return row ? toUser(row) : null;
 }
