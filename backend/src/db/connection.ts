@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import { BUILTIN_GAMES } from '../shops/games';
 
 export type DB = Database.Database;
 
@@ -13,11 +14,22 @@ export function openDb(file: string): DB {
     CREATE TABLE IF NOT EXISTS shops (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
       name           TEXT NOT NULL,
-      base_url       TEXT NOT NULL UNIQUE,
+      base_url       TEXT NOT NULL,
       search_url     TEXT NOT NULL,
       enabled        INTEGER NOT NULL DEFAULT 1,
       respect_robots INTEGER NOT NULL DEFAULT 1,
-      created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+      game           TEXT NOT NULL DEFAULT 'pokemon',
+      UNIQUE (base_url, game)
+    );
+
+    CREATE TABLE IF NOT EXISTS games (
+      slug     TEXT PRIMARY KEY,
+      name     TEXT NOT NULL,
+      keywords TEXT NOT NULL,
+      query    TEXT NOT NULL,
+      enabled  INTEGER NOT NULL DEFAULT 1,
+      builtin  INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS products (
@@ -86,6 +98,38 @@ export function openDb(file: string): DB {
   for (const col of ['first_name', 'last_name', 'city', 'address', 'phone', 'terms_accepted_at', 'terms_version']) {
     if (!userColumns.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
   }
+  // Games: the built-in ones are always present (a stored name/keywords change is kept).
+  const addGame = db.prepare('INSERT OR IGNORE INTO games (slug, name, keywords, query, enabled, builtin) VALUES (?, ?, ?, ?, 1, 1)');
+  for (const g of BUILTIN_GAMES) addGame.run(g.slug, g.name, g.keywords, g.query);
+
+  // Shops used to be unique per web address; now unique per address AND game, so the same shop
+  // can be listed once for every game it sells. SQLite cannot change a UNIQUE constraint, so the
+  // table is rebuilt (foreign keys off meanwhile so that the products are not touched).
+  const shopColumns = new Set((db.prepare('PRAGMA table_info(shops)').all() as { name: string }[]).map((c) => c.name));
+  if (!shopColumns.has('game')) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE shops_new (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          name           TEXT NOT NULL,
+          base_url       TEXT NOT NULL,
+          search_url     TEXT NOT NULL,
+          enabled        INTEGER NOT NULL DEFAULT 1,
+          respect_robots INTEGER NOT NULL DEFAULT 1,
+          created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+          game           TEXT NOT NULL DEFAULT 'pokemon',
+          UNIQUE (base_url, game)
+        );
+        INSERT INTO shops_new (id, name, base_url, search_url, enabled, respect_robots, created_at)
+          SELECT id, name, base_url, search_url, enabled, respect_robots, created_at FROM shops;
+        DROP TABLE shops;
+        ALTER TABLE shops_new RENAME TO shops;
+      `);
+    })();
+    db.pragma('foreign_keys = ON');
+  }
+
   // Accounts that existed before activation links were introduced count as activated.
   if (!userColumns.has('email_verified_at')) {
     db.exec('ALTER TABLE users ADD COLUMN email_verified_at TEXT');

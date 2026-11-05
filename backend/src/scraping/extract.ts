@@ -5,6 +5,12 @@ import type { ExtractedProduct } from '../types';
 
 /** Matches Latin and Cyrillic spellings (Pokémon / Pokemon / Покемон). */
 export const POKEMON_RE = /pok[eé]mon|покемон/i;
+/**
+ * Keywords of the game being extracted right now. extractAll() sets it for the duration of one
+ * (synchronous) call, so the helper functions below need not pass it around.
+ */
+let activeGameRe: RegExp = POKEMON_RE;
+
 /** Words that mark a trading-card product (English + Bulgarian). */
 export const TCG_RE =
   /\btcg\b|trading card|booster|бустер|карти|картов|\bcards?\b|elite trainer|\betb\b|blister|\btin\b|collection|колекци|\bdeck\b|тесте|bundle/i;
@@ -19,6 +25,11 @@ const PRICE_BEFORE_RE = /(€|EUR|BGN)\s*(\d{1,3}(?:[  .]\d{3})*(?:[.,]\d{1,2})
 export type CheerioAPI = ReturnType<typeof cheerio.load>;
 
 export function isPokemonTcg(p: Pick<ExtractedProduct, 'title' | 'url'>): boolean {
+  return isGameTcg(p, POKEMON_RE);
+}
+
+/** Is this a trading-card product of the game whose keywords are `gameRe`? */
+export function isGameTcg(p: Pick<ExtractedProduct, 'title' | 'url'>, gameRe: RegExp): boolean {
   let url = p.url;
   try {
     url = decodeURIComponent(p.url);
@@ -26,7 +37,7 @@ export function isPokemonTcg(p: Pick<ExtractedProduct, 'title' | 'url'>): boolea
     /* keep raw url */
   }
   const haystack = `${p.title} ${url}`;
-  return POKEMON_RE.test(haystack) && TCG_RE.test(haystack);
+  return gameRe.test(haystack) && TCG_RE.test(haystack);
 }
 
 /** Parses "1 299,90", "1.299,90", "49.99", "49,99" into a number. */
@@ -264,7 +275,7 @@ function describeCard($: CheerioAPI, original: Cheerio<AnyNode>, baseUrl: string
     if (wrapper.length === 1) inStock = !OUT_OF_STOCK_RE.test(clean(wrapper.text()));
   }
   // Skip containers that have neither a price nor a stock marker nor Pokémon in the name.
-  if (!price && inStock === null && !POKEMON_RE.test(title)) return null;
+  if (!price && inStock === null && !activeGameRe.test(title)) return null;
 
   return {
     title,
@@ -427,7 +438,7 @@ function fromAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
     const el = $(a);
     const title = clean(el.attr('title')) || clean(el.text());
     const url = resolveUrl(el.attr('href'), baseUrl);
-    if (!url || title.length < 8 || !POKEMON_RE.test(title)) return;
+    if (!url || title.length < 8 || !activeGameRe.test(title)) return;
     out.push({ title, url, price: null, currency: null, inStock: null, imageUrl: null });
   });
   return out;
@@ -440,7 +451,7 @@ function fromAnchors($: CheerioAPI, baseUrl: string): ExtractedProduct[] {
 export function extractProducts(
   html: string,
   baseUrl: string,
-  opts: { filterPokemon?: boolean } = {},
+  opts: { filterPokemon?: boolean; gameRe?: RegExp } = {},
 ): ExtractedProduct[] {
   return extractAll(html, baseUrl, opts).matched;
 }
@@ -449,7 +460,23 @@ export function extractProducts(
 export function extractAll(
   html: string,
   baseUrl: string,
-  opts: { filterPokemon?: boolean } = {},
+  opts: { filterPokemon?: boolean; gameRe?: RegExp } = {},
+): { scanned: ExtractedProduct[]; matched: ExtractedProduct[] } {
+  const gameRe = opts.gameRe ?? POKEMON_RE;
+  const previous = activeGameRe;
+  activeGameRe = gameRe;
+  try {
+    return extractWithActiveGame(html, baseUrl, gameRe, opts.filterPokemon);
+  } finally {
+    activeGameRe = previous;
+  }
+}
+
+function extractWithActiveGame(
+  html: string,
+  baseUrl: string,
+  gameRe: RegExp,
+  filterByGame: boolean | undefined,
 ): { scanned: ExtractedProduct[]; matched: ExtractedProduct[] } {
   const $ = cheerio.load(html);
 
@@ -479,7 +506,7 @@ export function extractAll(
     const known = new Set([...merged.values()].map((p) => p.title.toLowerCase()));
     priceProducts.filter((p) => !known.has(p.title.toLowerCase())).forEach(add);
   }
-  if (merged.size === 0 && opts.filterPokemon !== false) fromAnchors($, baseUrl).forEach(add);
+  if (merged.size === 0 && filterByGame !== false) fromAnchors($, baseUrl).forEach(add);
 
   // Shops such as ozone.bg show the add-to-cart control only on products that can be bought: when
   // some cards on the page have one, a card without one (and without an options choice) is out of stock.
@@ -491,6 +518,6 @@ export function extractAll(
   }
 
   const scanned: ExtractedProduct[] = cards.map(({ buyControl: _b, optionsOnly: _o, ...p }) => p);
-  // On a Pokémon TCG category page every product counts, so no keyword filter is applied.
-  return { scanned, matched: opts.filterPokemon === false ? scanned : scanned.filter(isPokemonTcg) };
+  // On a category page of the game every product counts, so no keyword filter is applied.
+  return { scanned, matched: filterByGame === false ? scanned : scanned.filter((p) => isGameTcg(p, gameRe)) };
 }

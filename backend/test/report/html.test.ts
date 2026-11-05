@@ -11,6 +11,7 @@ const product = (over: Partial<FoundProduct>): FoundProduct => ({
   imageUrl: null,
   shopId: 1,
   shopName: 'ozone.bg',
+  game: 'pokemon',
   isNew: true,
   backInStock: false,
   ...over,
@@ -23,8 +24,8 @@ const summary: RunSummary = {
   source: 'manual',
   query: 'pokemon tcg',
   shops: [
-    { shopId: 1, shopName: 'ozone.bg', searchUrl: 'https://www.ozone.bg/pokemon/', status: 'ok', found: 2, scanned: 50, newCount: 1, backInStock: 0 },
-    { shopId: 2, shopName: 'blocked.bg', status: 'blocked', message: 'Disallowed by robots.txt', found: 0, newCount: 0, backInStock: 0 },
+    { shopId: 1, shopName: 'ozone.bg', game: 'pokemon', searchUrl: 'https://www.ozone.bg/pokemon/', status: 'ok', found: 2, scanned: 50, newCount: 1, backInStock: 0 },
+    { shopId: 2, shopName: 'blocked.bg', game: 'pokemon', status: 'blocked', message: 'Disallowed by robots.txt', found: 0, newCount: 0, backInStock: 0 },
   ],
   products: [
     product({}),
@@ -85,7 +86,7 @@ describe('buildReportHtml', () => {
       manualShops: [{ name: 'toyzzshop.bg', url: 'https://toyzzshop.bg/nastolni-igri', note: 'The shop blocks automatic checks (HTTP 403)' }],
     });
     expect(withManual).toContain(
-      '"manualShops":[{"name":"toyzzshop.bg","page":"https://toyzzshop.bg/nastolni-igri","note":"The shop blocks automatic checks (HTTP 403)"}]',
+      '"manualShops":[{"name":"toyzzshop.bg","page":"https://toyzzshop.bg/nastolni-igri","note":"The shop blocks automatic checks (HTTP 403)","game":"pokemon"}]',
     );
     expect(withManual).toContain("'Check manually'");
     expect(html).toContain('"manualShops":[]');
@@ -93,5 +94,38 @@ describe('buildReportHtml', () => {
 
   it('works without any product', () => {
     expect(buildReportHtml({ ...summary, products: [] })).toContain('"products":[]');
+  });
+});
+
+describe('report menu of games', () => {
+  const multi: RunSummary = {
+    ...summary,
+    games: [
+      { slug: 'pokemon', name: 'Pokémon' },
+      { slug: 'onepiece', name: 'One Piece' },
+    ],
+    shops: [
+      { shopId: 1, shopName: 'kamato.test', game: 'pokemon', status: 'ok', found: 1, newCount: 0, backInStock: 0 },
+      { shopId: 2, shopName: 'kamato.test', game: 'onepiece', status: 'ok', found: 1, newCount: 0, backInStock: 0 },
+    ],
+    products: [
+      product({ shopId: 1, shopName: 'kamato.test', game: 'pokemon' }),
+      product({ shopId: 2, shopName: 'kamato.test', game: 'onepiece', title: 'One Piece OP-05', url: 'https://kamato.test/op' }),
+    ],
+  };
+  const html = buildReportHtml(multi);
+
+  it('carries the games, tags shops and products with their game and tells apart a shop listed for two games', () => {
+    expect(html).toContain('id="games"');
+    expect(html).toContain('"games":[{"slug":"pokemon","name":"Pokémon"},{"slug":"onepiece","name":"One Piece"}]');
+    expect(html).toContain('"name":"kamato.test · Pokémon"');
+    expect(html).toContain('"name":"kamato.test · One Piece"');
+    expect(html).toContain('"shop":"kamato.test · One Piece","game":"onepiece"');
+  });
+
+  it('treats a summary without games (older runs) as Pokémon only', () => {
+    const old = buildReportHtml({ ...summary, games: undefined });
+    expect(old).toContain('"games":[{"slug":"pokemon","name":"Pokémon"}]');
+    expect(old).toContain('"name":"ozone.bg"'); // no suffix when the name is unique
   });
 });

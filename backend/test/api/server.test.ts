@@ -333,4 +333,47 @@ describe('API accounts', () => {
       expect(mails).toHaveLength(2);
     });
   });
+
+  describe('games menu', () => {
+    it('lists the built-in games to anyone signed in and lets only the admin add, change and delete games', async () => {
+      const { app, mails } = await setup();
+      const admin = await signIn(app);
+      const list = await app.inject({ method: 'GET', url: '/api/games', headers: admin });
+      expect(list.json().map((g: { slug: string }) => g.slug)).toEqual(['pokemon', 'onepiece', 'yugioh', 'mtg']);
+      expect((await app.inject({ method: 'GET', url: '/api/games' })).statusCode).toBe(401);
+
+      const created = await app.inject({ method: 'POST', url: '/api/games', headers: admin, payload: { name: 'Dragon Ball', keywords: 'dragon ball, dbs' } });
+      expect(created.statusCode).toBe(201);
+      expect(created.json()).toMatchObject({ slug: 'dragon-ball', name: 'Dragon Ball', keywords: 'dragon ball, dbs', query: 'Dragon Ball', builtin: false, enabled: true });
+      expect((await app.inject({ method: 'POST', url: '/api/games', headers: admin, payload: { name: 'dragon ball' } })).statusCode).toBe(409);
+      expect((await app.inject({ method: 'POST', url: '/api/games', headers: admin, payload: { name: '!!' } })).statusCode).toBe(400);
+
+      // a shop page can be added for the new game, but not for an unknown one
+      const shop = (game: string) => app.inject({ method: 'POST', url: '/api/shops', headers: admin, payload: { url: 'shop.test', searchUrl: 'https://shop.test/db', game } });
+      expect((await shop('nope')).statusCode).toBe(400);
+      const added = await shop('dragon-ball');
+      expect(added.statusCode).toBe(201);
+      expect(added.json().game).toBe('dragon-ball');
+      expect((await shop('dragon-ball')).statusCode).toBe(409);
+      expect((await shop('mtg')).statusCode).toBe(201); // same address, other game
+
+      expect((await app.inject({ method: 'PATCH', url: '/api/games/yugioh', headers: admin, payload: { enabled: false } })).json().enabled).toBe(false);
+      expect((await app.inject({ method: 'DELETE', url: '/api/games/pokemon', headers: admin })).statusCode).toBe(400);
+      expect((await app.inject({ method: 'DELETE', url: '/api/games/dragon-ball', headers: admin })).statusCode).toBe(204);
+      expect((await app.inject({ method: 'DELETE', url: '/api/games/dragon-ball', headers: admin })).statusCode).toBe(404);
+      const shops = (await app.inject({ method: 'GET', url: '/api/shops', headers: admin })).json();
+      expect(shops.map((s: { game: string }) => s.game)).toEqual(['mtg']); // the deleted game's page went with it
+
+      // a regular member can read but not change the menu
+      const reg = { email: 'member@test.com', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x', ...PROFILE };
+      await app.inject({ method: 'POST', url: '/api/auth/register', payload: reg });
+      const token = /activate=([\w-]+)/.exec(mails[mails.length - 1].text)![1];
+      await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token } });
+      const member = await signIn(app, 'member@test.com', reg.password);
+      expect((await app.inject({ method: 'GET', url: '/api/games', headers: member })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'POST', url: '/api/games', headers: member, payload: { name: 'Digimon' } })).statusCode).toBe(403);
+      expect((await app.inject({ method: 'PATCH', url: '/api/games/mtg', headers: member, payload: { enabled: false } })).statusCode).toBe(403);
+      expect((await app.inject({ method: 'DELETE', url: '/api/games/mtg', headers: member })).statusCode).toBe(403);
+    });
+  });
 });

@@ -8,6 +8,8 @@ export interface ShopEntry {
   name?: string;
   searchUrl?: string;
   enabled?: boolean;
+  /** Game slug (see shops/games.ts); Pokémon when left out. */
+  game?: string;
   /** Never fetched (e.g. the shop blocks the tracker); the report links to it to check by hand. */
   manual?: boolean;
   /** Why the shop has to be checked by hand, shown in the report. */
@@ -19,6 +21,7 @@ export interface ManualShop {
   name: string;
   url: string;
   note: string;
+  game: string;
 }
 
 function readEntries(file: string): ShopEntry[] {
@@ -32,15 +35,15 @@ export function syncShops(db: DB, file: string): void {
   const wanted = new Map<string, { shop: ReturnType<typeof normalizeShopInput>; enabled: boolean }>();
   for (const entry of entries) {
     const shop = normalizeShopInput(entry);
-    wanted.set(shop.baseUrl, { shop, enabled: entry.enabled !== false });
+    wanted.set(`${shop.baseUrl}|${shop.game}`, { shop, enabled: entry.enabled !== false });
   }
 
   const existing = listShops(db);
   for (const s of existing) {
-    if (!wanted.has(s.baseUrl)) deleteShop(db, s.id);
+    if (!wanted.has(`${s.baseUrl}|${s.game}`)) deleteShop(db, s.id);
   }
-  for (const [baseUrl, { shop, enabled }] of wanted) {
-    const current = existing.find((s) => s.baseUrl === baseUrl);
+  for (const { shop, enabled } of wanted.values()) {
+    const current = existing.find((s) => s.baseUrl === shop.baseUrl && s.game === shop.game);
     if (current) {
       updateShop(db, current.id, { name: shop.name, searchUrl: shop.searchUrl, enabled });
     } else {
@@ -56,8 +59,8 @@ export function readManualShops(file: string): ManualShop[] {
   return readEntries(file)
     .filter((e) => e.manual && e.enabled !== false)
     .map((e) => {
-      const shop = normalizeShopInput({ url: e.url, name: e.name });
+      const shop = normalizeShopInput({ url: e.url, name: e.name, game: e.game });
       const page = e.searchUrl && !e.searchUrl.includes('{query}') ? e.searchUrl : shop.baseUrl;
-      return { name: shop.name, url: page, note: e.note?.trim() ?? '' };
+      return { name: shop.name, url: page, note: e.note?.trim() ?? '', game: shop.game };
     });
 }

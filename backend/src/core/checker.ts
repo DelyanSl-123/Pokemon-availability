@@ -2,8 +2,9 @@ import type { DB } from '../db/connection';
 import { detectBotWall, diagnose } from '../scraping/diagnose';
 import { extractAll } from '../scraping/extract';
 import { fetchPage as defaultFetchPage, type PageFetcher } from '../scraping/fetcher';
-import { finishRun, insertRun, listShops, upsertProduct } from '../db/repository';
-import { buildSearchUrl, listsOnlyPokemon } from '../shops/shop-urls';
+import { finishRun, insertRun, listGames, listShops, upsertProduct } from '../db/repository';
+import { keywordRegex } from '../shops/games';
+import { buildSearchUrl, listsOnlyGame } from '../shops/shop-urls';
 import type { FoundProduct, RunSummary, ShopRunResult } from '../types';
 
 export interface CheckDeps {
@@ -35,7 +36,10 @@ export async function runCheck(
 
   const startedAt = now().toISOString();
   const runId = insertRun(db, startedAt, opts.source);
-  const shops = listShops(db).filter((s) => s.enabled);
+  const games = listGames(db);
+  const gameOf = new Map(games.map((g) => [g.slug, g]));
+  // A shop page is checked when it is enabled and its game is still switched on.
+  const shops = listShops(db).filter((s) => s.enabled && gameOf.get(s.game)?.enabled !== false);
 
   const results: ShopRunResult[] = [];
   const products: FoundProduct[] = [];
@@ -44,10 +48,16 @@ export async function runCheck(
     const shop = shops[i];
     if (i > 0 && delayMs > 0) await sleep(delayMs);
 
-    const searchPage = buildSearchUrl(shop.searchUrl, opts.query);
+    const game = gameOf.get(shop.game);
+    const gameRe = keywordRegex(game?.keywords ?? 'pokemon, pokémon, покемон');
+    const gameName = game?.name ?? shop.game;
+    // Pokémon keeps using the phrase from the settings; the other games have their own.
+    const query = shop.game === 'pokemon' || !game ? opts.query : game.query;
+    const searchPage = buildSearchUrl(shop.searchUrl, query);
     const base: ShopRunResult = {
       shopId: shop.id,
       shopName: shop.name,
+      game: shop.game,
       searchUrl: searchPage,
       status: 'ok',
       found: 0,
@@ -81,14 +91,15 @@ export async function runCheck(
 
     try {
       const { scanned, matched } = extractAll(outcome.html, outcome.url, {
-        filterPokemon: !listsOnlyPokemon(shop.searchUrl),
+        filterPokemon: !listsOnlyGame(shop.searchUrl, gameRe, shop.game === 'pokemon'),
+        gameRe,
       });
       const seenAt = now().toISOString();
 
       const save = db.transaction(() => {
         for (const p of matched) {
           const { isNew, backInStock } = upsertProduct(db, shop.id, p, seenAt);
-          products.push({ ...p, shopId: shop.id, shopName: shop.name, isNew, backInStock });
+          products.push({ ...p, shopId: shop.id, shopName: shop.name, game: shop.game, isNew, backInStock });
           if (isNew) base.newCount++;
           if (backInStock) base.backInStock++;
         }
@@ -101,7 +112,7 @@ export async function runCheck(
       if (matched.length === 0) {
         base.message =
           scanned.length > 0
-            ? `${scanned.length} products were on the page, none looked like Pokémon TCG`
+            ? `${scanned.length} products were on the page, none looked like ${gameName} trading cards`
             : 'Page loaded but no products were recognised';
       }
       results.push(base);
@@ -116,6 +127,7 @@ export async function runCheck(
     finishedAt: now().toISOString(),
     source: opts.source,
     query: opts.query,
+    games: games.filter((g) => g.enabled).map((g) => ({ slug: g.slug, name: g.name })),
     shops: results,
     products,
   };
