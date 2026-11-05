@@ -79,7 +79,7 @@ export const api = {
   me: () => request<{ user: User }>('/auth/me').then((r) => r.user),
   login: (body: { email: string; password: string }) =>
     request<{ user: User }>('/auth/login', { method: 'POST', body: json(body) }).then((r) => r.user),
-  register: (body: { email: string; password: string }) =>
+  register: (body: { email: string; password: string; confirmPassword: string }) =>
     request<{ user: User }>('/auth/register', { method: 'POST', body: json(body) }).then((r) => r.user),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   shops: () => request<Shop[]>('/shops'),
