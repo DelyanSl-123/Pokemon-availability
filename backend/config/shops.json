@@ -8,7 +8,7 @@
     "url": "https://www.pokemoncenter.com",
     "name": "Pokemon Center UK",
     "searchUrl": "https://www.pokemoncenter.com/en-gb/category/tcg-cards",
-    "enabled": false
+    "manual": true
   },
   {
     "url": "https://holo.bg",
@@ -39,6 +39,7 @@
   {
     "url": "https://mgames.bg",
     "name": "mgames.bg",
-    "searchUrl": "https://mgames.bg/product-category/%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%B2%D0%B8-%D0%B8%D0%B3%D1%80%D0%B8/pokemon/"
+    "searchUrl": "https://mgames.bg/product-category/%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%B2%D0%B8-%D0%B8%D0%B3%D1%80%D0%B8/pokemon/",
+    "manual": true
   }
 ]
