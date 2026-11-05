@@ -18,6 +18,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [profile, setProfile] = useState({ firstName: '', lastName: '', city: '', address: '', phone: '' });
   const setField = (k: keyof typeof profile) => (e: { target: { value: string } }) =>
     setProfile({ ...profile, [k]: e.target.value });
@@ -31,10 +32,11 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
       const problems = passwordProblems(password, email);
       if (problems.length > 0) return setError(problems.join('. '));
       if (password !== confirm) return setError('The passwords do not match');
+      if (!acceptTerms) return setError('You must agree to the Terms and Conditions');
     }
     setBusy(true);
     try {
-      onSignedIn(await (mode === 'login' ? api.login({ email, password }) : api.register({ email, password, confirmPassword: confirm, ...profile, phone: profile.phone.trim() || undefined })));
+      onSignedIn(await (mode === 'login' ? api.login({ email, password }) : api.register({ email, password, confirmPassword: confirm, ...profile, phone: profile.phone.trim() || undefined, acceptTerms })));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -46,6 +48,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
     setMode(mode === 'login' ? 'register' : 'login');
     setError(null);
     setConfirm('');
+    setAcceptTerms(false);
   };
 
   return (
@@ -127,6 +130,15 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
                   );
                 })}
               </ul>
+              <label className="inline">
+                <input type="checkbox" required checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
+                <span>
+                  I agree to the{' '}
+                  <a href="/terms.html" target="_blank" rel="noopener noreferrer">
+                    Terms and Conditions
+                  </a>
+                </span>
+              </label>
             </>
           )}
           <div>

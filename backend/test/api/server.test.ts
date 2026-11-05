@@ -4,7 +4,7 @@ import { ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
 import { buildServer } from '../../src/api/server';
 
-const PROFILE = { firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1' };
+const PROFILE = { firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', acceptTerms: true };
 const ADMIN = { email: 'admin@test.com', password: 'admin-password' };
 
 async function setup() {
@@ -142,6 +142,9 @@ describe('API accounts', () => {
     for (const password of ['Sh0rt!a', 'alllowercase1!', 'ALLUPPERCASE1!', 'NoDigitsHere!!', 'NoSpecial1234x', 'Has Space-1234x']) {
       expect((await reg({ ...good, password, confirmPassword: password })).statusCode, password).toBe(400);
     }
+    expect((await reg({ ...good, acceptTerms: false })).statusCode).toBe(400);
+    const { acceptTerms: _omit, ...withoutTerms } = good;
+    expect((await reg(withoutTerms)).statusCode).toBe(400);
     const mismatch = await reg({ ...good, confirmPassword: 'Str0ng-Passw0rd?' });
     expect(mismatch.statusCode).toBe(400);
     expect(mismatch.json().error).toContain('do not match');

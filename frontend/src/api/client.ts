@@ -66,6 +66,7 @@ export interface RegisterBody {
   city: string;
   address: string;
   phone?: string;
+  acceptTerms: boolean;
 }
 
 /** An error response from the API; `status` 401 means the session is missing or expired. */

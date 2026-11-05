@@ -63,6 +63,7 @@ const registerSchema = credentialsSchema
   .extend({
     password: z.string().max(200),
     confirmPassword: z.string().max(200),
+    acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must agree to the Terms and Conditions' }) }),
     firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
     lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
     city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
@@ -145,7 +146,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     const { email, password, firstName, lastName, city, address, phone } = registerSchema.parse(req.body);
     let user: User;
     try {
-      user = createUser(deps.db, email, password, { firstName, lastName, city, address, phone });
+      user = createUser(deps.db, email, password, { firstName, lastName, city, address, phone, termsAcceptedAt: new Date().toISOString() });
     } catch (e) {
       if (e instanceof Error && /UNIQUE/i.test(e.message)) {
         return reply.status(409).send({ error: 'An account with this email already exists' });

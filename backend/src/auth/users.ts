@@ -23,6 +23,8 @@ export interface Profile {
   city: string;
   address: string;
   phone?: string;
+  /** Set when the person ticked the Terms and Conditions box. */
+  termsAcceptedAt?: string;
 }
 
 interface UserRow {
@@ -66,8 +68,8 @@ function findRow(db: DB, email: string): UserRow | undefined {
 export function createUser(db: DB, email: string, password: string, profile?: Profile): User {
   const info = db
     .prepare(
-      `INSERT INTO users (email, password_hash, role, first_name, last_name, city, address, phone)
-       VALUES (?, ?, 'user', ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (email, password_hash, role, first_name, last_name, city, address, phone, terms_accepted_at)
+       VALUES (?, ?, 'user', ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       normalizeEmail(email),
@@ -77,6 +79,7 @@ export function createUser(db: DB, email: string, password: string, profile?: Pr
       profile?.city ?? null,
       profile?.address ?? null,
       profile?.phone || null,
+      profile?.termsAcceptedAt ?? null,
     );
   return toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid) as UserRow);
 }
