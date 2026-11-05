@@ -111,19 +111,17 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .sub { color:var(--muted); font-size:.85rem; }
 
   /* hero */
-  .hero { background:var(--hero); color:var(--hero-text); position:relative; padding:22px 0 26px; }
+  .hero { background:var(--hero); color:var(--hero-text); position:relative; padding:4px 0 22px; }
   .hero::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--holo); }
   .brand { display:flex; align-items:center; gap:14px; }
   .brand svg { width:52px; height:52px; flex:none; filter:drop-shadow(0 4px 10px rgba(227,53,13,.35)); }
   h1 { margin:0; font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
   h1 span { color:var(--accent); }
   .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
-  .gamepick { margin-left:auto; }
   .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
   .account:hover { background:var(--hero-hover); border-color:var(--muted); }
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
-  @media (max-width:560px) { .brand { flex-wrap:wrap; } .gamepick { order:3; flex:1 0 100%; margin-left:0; } .gamepick select { width:100%; } }
   .meta { color:var(--hero-muted); font-size:.85rem; margin:18px 0 0; }
   .meta b { color:var(--hero-text); font-weight:600; }
   .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; border-top:1px solid var(--hero-line); }
@@ -139,11 +137,52 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 
   /* shops */
   .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .gamepick { position:relative; }
-  .gamepick select { appearance:none; -webkit-appearance:none; height:38px; padding:0 34px 0 16px; border-radius:999px; border:1px solid var(--hero-line); background:var(--hero-hover); color:var(--hero-text); font-weight:650; font-size:.9rem; cursor:pointer; }
-  .gamepick select option { color:#111; background:#fff; }
-  .gamepick::after { content:""; position:absolute; right:15px; top:50%; width:6px; height:6px; margin-top:-5px; border:solid var(--hero-text); border-width:0 2px 2px 0; transform:rotate(45deg); pointer-events:none; }
-  .gamepick select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  /* top bar: stays on screen while scrolling */
+  .topbar { position:sticky; top:0; z-index:30; background:var(--hero); color:var(--hero-text); border-bottom:1px solid var(--hero-line); }
+  .bar { display:flex; align-items:center; gap:14px; height:60px; }
+  .bar .brand { gap:10px; flex:none; }
+  .bar .brand svg { width:34px; height:34px; filter:none; }
+  .bar h1 { font-size:1.2rem; }
+  .gamenav { display:flex; gap:2px; margin-left:18px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .gamenav::-webkit-scrollbar { display:none; }
+  .gamenav button, .drawer .glist button { font:inherit; cursor:pointer; background:none; border:0; color:inherit; }
+  .gamenav button { position:relative; padding:20px 12px; font-size:.92rem; font-weight:600; color:var(--hero-muted); white-space:nowrap; }
+  .gamenav button:hover { color:var(--hero-text); }
+  .gamenav button.active { color:var(--hero-text); }
+  .gamenav button.active::after { content:""; position:absolute; left:12px; right:12px; bottom:0; height:3px; border-radius:3px 3px 0 0; background:var(--accent); }
+  .iconbtn, .fbtn { font:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:8px; color:var(--hero-text); background:var(--hero-hover); border:1px solid var(--hero-line); border-radius:999px; height:38px; }
+  .iconbtn { width:38px; justify-content:center; padding:0; }
+  .fbtn { padding:0 16px 0 12px; font-weight:650; font-size:.9rem; margin-left:auto; }
+  .gamenav + .fbtn { margin-left:0; }
+  .fbtn[aria-expanded=true] { border-color:var(--accent); }
+  .fbtn b { background:var(--accent); color:#fff; border-radius:999px; font-size:.72rem; min-width:18px; height:18px; line-height:18px; text-align:center; padding:0 5px; }
+  .fbtn b:empty { display:none; }
+  .iconbtn svg, .fbtn svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+  .burger { display:none; }
+  .fpanel { position:absolute; top:100%; right:0; left:0; }
+  .fpanel .wrap { display:flex; justify-content:flex-end; }
+  .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
+  .fpanel .search { min-width:0; flex:none; }
+  .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .fpanel .row select { flex:1; min-width:0; }
+  .fpanel .actions { display:flex; gap:8px; align-items:center; }
+  .fpanel .actions .sub { margin-left:auto; }
+  .scrim { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.5); }
+  .drawer { position:fixed; top:0; bottom:0; left:0; z-index:50; width:min(320px,86vw); background:var(--surface); color:var(--text); transform:translateX(-102%); transition:transform .2s; overflow-y:auto; box-shadow:var(--shadow-hover); }
+  .drawer.open { transform:none; }
+  .drawer .dtop { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
+  .drawer .dtop b { font-size:1rem; }
+  .drawer .dtop .iconbtn { color:var(--text); background:none; border-color:var(--line); }
+  .drawer h3 { margin:18px 20px 6px; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .drawer .glist button { display:flex; width:100%; justify-content:space-between; align-items:center; text-align:left; padding:14px 20px; font-size:1rem; font-weight:600; border-left:4px solid transparent; }
+  .drawer .glist button small { color:var(--muted); font-weight:500; }
+  .drawer .glist button.active { border-left-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+  @media (max-width:860px) {
+    .burger { display:inline-flex; } .gamenav { display:none; }
+    .bar { gap:10px; } .bar h1 { font-size:1.05rem; } .gamenav + .fbtn { margin-left:auto; }
+  }
+  @media (min-width:861px) { .drawer, .scrim { display:none; } }
+  @media (max-width:480px) { .fbtn span.t { display:none; } .fbtn { padding:0 10px; } .bar .brand h1 { font-size:.98rem; } }
   details.shopsbox { margin:18px 0 0; }
   details.shopsbox > summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:650; color:var(--muted); }
   details.shopsbox > summary::-webkit-details-marker { display:none; }
@@ -170,7 +209,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
 
   /* toolbar */
-  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px; margin-top:20px; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:12px; margin-top:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
   .controls .btn { height:38px; padding:0 18px; border-radius:10px; font:inherit; font-size:.9rem; font-weight:650; cursor:pointer; }
   .controls .btn.go { background:var(--accent); color:#fff; border:1px solid var(--accent); }
   .controls .btn.reset { background:transparent; color:var(--muted); border:1px solid var(--line); }
@@ -291,14 +330,50 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </style>
 </head>
 <body>
+<div class="topbar">
+  <div class="wrap bar">
+    <button type="button" class="iconbtn burger" id="burger" aria-label="Games menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <div class="brand">${LOGO_SVG}<h1>Collectible<span>Market</span></h1></div>
+    <nav class="gamenav" id="games" aria-label="Games"></nav>
+    <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
+    ${accountLink}
+  </div>
+  <div class="fpanel" id="fpanel" hidden><div class="wrap">
+  <form class="controls" id="filters" autocomplete="off">
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
+    </div>
+    <div class="row">
+      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
+      <select id="sort" aria-label="Sort">
+        <option value="shop">Group by shop, in stock first</option>
+        <option value="price-asc">Price low → high</option>
+        <option value="price-desc">Price high → low</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
+      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn go">Filter</button>
+      <button type="reset" class="btn reset" id="reset">Reset</button>
+      <span class="sub" id="count"></span>
+    </div>
+  </form>
+  </div></div>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Games menu">
+  <div class="dtop"><button type="button" class="iconbtn" id="dclose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><b>Collectible<span style="color:var(--accent)">Market</span></b></div>
+  <h3>Games</h3>
+  <div class="glist" id="gdrawer"></div>
+</aside>
 <header class="hero">
   <div class="wrap">
-    <div class="brand">
-      ${LOGO_SVG}
-      <div><h1>Collectible<span>Market</span></h1><div class="tagline">Trading card game availability tracker</div></div>
-      <label class="gamepick"><select id="games" aria-label="Game"></select></label>
-      ${accountLink}
-    </div>
+    <div class="tagline" style="margin-top:14px">Trading card game availability tracker</div>
     <p class="meta">Checked <b>${esc(when)}</b> (Sofia time) · search phrase <b>“${esc(summary.query)}”</b></p>
     <div class="stats">
       <div class="stat"><b id="s-total">0</b><span>products</span></div>
@@ -310,25 +385,6 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </header>
 
 <main class="wrap" id="list-view">
-  <form class="controls" id="filters" autocomplete="off">
-    <div class="search">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" id="q" placeholder="Search products…" aria-label="Search products">
-    </div>
-    <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
-    <select id="sort" aria-label="Sort">
-      <option value="shop">Group by shop, in stock first</option>
-      <option value="price-asc">Price low → high</option>
-      <option value="price-desc">Price high → low</option>
-      <option value="name">Name</option>
-    </select>
-    <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
-    <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
-    <button type="submit" class="btn go">Filter</button>
-    <button type="reset" class="btn reset" id="reset">Reset</button>
-    <span class="sub" id="count"></span>
-  </form>
-
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
   <div id="results"></div>
@@ -393,18 +449,39 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   var game = '';
   var games = data.games || [];
   function inGame(x) { return !game || x.game === game; }
+  function setGame(slug) { game = slug; renderTabs(); buildShops(); render(); closeDrawer(); }
   function renderTabs() {
-    var sel = $('games');
-    sel.textContent = '';
-    [{ slug: '', name: 'All games' }].concat(games).forEach(function (g) {
-      var n = products.filter(function (p) { return !g.slug || p.game === g.slug; }).length;
-      var o = el('option', '', g.name + ' (' + n + ')');
-      o.value = g.slug;
-      sel.appendChild(o);
+    ['games', 'gdrawer'].forEach(function (id) {
+      var box = $(id);
+      box.textContent = '';
+      [{ slug: '', name: 'All games' }].concat(games).forEach(function (g) {
+        var b = el('button', g.slug === game ? 'active' : '', g.name);
+        b.type = 'button';
+        if (id === 'gdrawer') {
+          var n = products.filter(function (p) { return !g.slug || p.game === g.slug; }).length;
+          b.appendChild(el('small', '', String(n)));
+        }
+        b.addEventListener('click', function () { setGame(g.slug); });
+        box.appendChild(b);
+      });
     });
-    sel.value = game;
-    sel.onchange = function () { game = sel.value; buildShops(); render(); };
   }
+  function closeDrawer() {
+    $('drawer').classList.remove('open'); $('scrim').hidden = true; $('burger').setAttribute('aria-expanded', 'false');
+  }
+  function setPanel(open) {
+    $('fpanel').hidden = !open; $('fbtn').setAttribute('aria-expanded', String(open));
+    if (open) $('q').focus();
+  }
+  $('burger').addEventListener('click', function () {
+    $('drawer').classList.add('open'); $('scrim').hidden = false; $('burger').setAttribute('aria-expanded', 'true');
+  });
+  $('dclose').addEventListener('click', closeDrawer);
+  $('scrim').addEventListener('click', closeDrawer);
+  $('fbtn').addEventListener('click', function (e) { e.stopPropagation(); setPanel($('fpanel').hidden); });
+  $('fpanel').addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('click', function () { setPanel(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDrawer(); setPanel(false); } });
 
   function updateTotals() {
     var inScope = products.filter(inGame);
@@ -784,10 +861,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       out.appendChild(all);
     }
     $('count').textContent = list.length + ' shown';
+    var active = (q ? 1 : 0) + (shop ? 1 : 0) + (sort !== 'shop' ? 1 : 0) + ($('instock').checked ? 1 : 0) + ($('onlynew').checked ? 1 : 0);
+    $('fcount').textContent = active ? String(active) : '';
     refreshPicks();
   }
 
-  $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); });
+  $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
   renderTabs();
   buildShops();
