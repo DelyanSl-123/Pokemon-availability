@@ -74,7 +74,9 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
                 <input required maxLength={200} autoComplete="street-address" value={profile.address} onChange={setField('address')} />
               </label>
               <label>
-                Phone <span className="sub">(optional)</span>
+                <span>
+                  Phone <span className="sub">(optional)</span>
+                </span>
                 <input
                   type="tel"
                   maxLength={20}
