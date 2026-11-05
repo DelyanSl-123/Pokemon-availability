@@ -61,6 +61,19 @@ export function openDb(file: string): DB {
       expires_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS password_resets (
+      token_hash TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS email_changes (
+      token_hash TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      new_email  TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       token_hash TEXT PRIMARY KEY,
       user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -70,7 +83,7 @@ export function openDb(file: string): DB {
 
   // Databases created before the profile fields existed (e.g. the one kept between daily runs).
   const userColumns = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
-  for (const col of ['first_name', 'last_name', 'city', 'address', 'phone', 'terms_accepted_at']) {
+  for (const col of ['first_name', 'last_name', 'city', 'address', 'phone', 'terms_accepted_at', 'terms_version']) {
     if (!userColumns.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
   }
   // Accounts that existed before activation links were introduced count as activated.

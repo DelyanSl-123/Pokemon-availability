@@ -55,6 +55,16 @@ export interface User {
   city: string | null;
   address: string | null;
   phone: string | null;
+  emailVerified: boolean;
+  termsVersion: string | null;
+}
+
+export interface Profile {
+  firstName: string;
+  lastName: string;
+  city: string;
+  address: string;
+  phone?: string;
 }
 
 export interface RegisterBody {
@@ -67,6 +77,9 @@ export interface RegisterBody {
   address: string;
   phone?: string;
   acceptTerms: boolean;
+  captchaToken?: string;
+  /** Hidden honeypot field; must stay empty. */
+  website?: string;
 }
 
 /** An error response from the API; `status` 401 means the session is missing or expired. */
@@ -99,7 +112,20 @@ export const api = {
   register: (body: RegisterBody) =>
     request<{ email: string; emailSent: boolean }>('/auth/register', { method: 'POST', body: json(body) }),
   activate: (token: string) => request<{ activated: boolean }>('/auth/activate', { method: 'POST', body: json({ token }) }),
-  resendActivation: (email: string) => request<{ ok: boolean }>('/auth/resend', { method: 'POST', body: json({ email }) }),
+  resendActivation: (email: string, captchaToken?: string) =>
+    request<{ ok: boolean }>('/auth/resend', { method: 'POST', body: json({ email, captchaToken }) }),
+  config: () => request<{ turnstileSiteKey: string | null }>('/config'),
+  forgotPassword: (email: string, captchaToken?: string) =>
+    request<{ ok: boolean }>('/auth/forgot', { method: 'POST', body: json({ email, captchaToken }) }),
+  resetPassword: (body: { token: string; password: string; confirmPassword: string }) =>
+    request<{ reset: boolean }>('/auth/reset', { method: 'POST', body: json(body) }),
+  confirmEmail: (token: string) => request<{ confirmed: boolean }>('/auth/confirm-email', { method: 'POST', body: json({ token }) }),
+  updateProfile: (body: Profile) => request<{ user: User }>('/account', { method: 'PATCH', body: json(body) }).then((r) => r.user),
+  changePassword: (body: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    request<{ changed: boolean }>('/account/password', { method: 'POST', body: json(body) }),
+  changeEmail: (body: { newEmail: string; password: string }) =>
+    request<{ emailSent: boolean }>('/account/email', { method: 'POST', body: json(body) }),
+  deleteAccount: (password: string) => request<void>('/account', { method: 'DELETE', body: json({ password }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   shops: () => request<Shop[]>('/shops'),
   addShop: (body: { url: string; searchUrl?: string }) => request<Shop>('/shops', { method: 'POST', body: json(body) }),

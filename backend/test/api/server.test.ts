@@ -4,11 +4,12 @@ import { ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
 import { buildServer } from '../../src/api/server';
 import type { Message } from '../../src/mail/mailer';
+import type { Captcha } from '../../src/api/captcha';
 
 const PROFILE = { firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', acceptTerms: true };
 const ADMIN = { email: 'admin@test.com', password: 'admin-password' };
 
-async function setup() {
+async function setup(extra: { captcha?: Captcha } = {}) {
   const db = openDb(':memory:');
   ensureAdmin(db, ADMIN.email, ADMIN.password);
   const scheduler = { start: vi.fn(), stop: vi.fn() };
@@ -16,8 +17,8 @@ async function setup() {
   const defaults = { cron: '0 9 * * *', query: 'pokemon tcg' };
   const mails: Message[] = [];
   const mailer = { send: vi.fn(async (m: Message) => (mails.push(m), { sent: true })) };
-  const app = await buildServer({ db, service: service as never, scheduler, defaults, mailer, appUrl: 'https://app.test/', security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
-  return { app, scheduler, service, mails, mailer };
+  const app = await buildServer({ db, service: service as never, scheduler, defaults, mailer, appUrl: 'https://app.test/', captcha: extra.captcha, security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
+  return { app, scheduler, service, mails, mailer, db };
 }
 
 /** Signs in and returns the Cookie header to send with later requests. */
@@ -212,5 +213,124 @@ describe('API accounts', () => {
     expect(out.statusCode).toBe(204);
     expect(String(out.headers['set-cookie'])).toContain('Max-Age=0');
     expect((await app.inject({ method: 'GET', url: '/api/products', headers })).statusCode).toBe(401);
+  });
+
+  describe('accounts', () => {
+    const PASSWORD = 'Sunny-Day#2024x';
+    const token = (m: Message, key: string) => new RegExp(`${key}=([\\w-]+)`).exec(m.text)![1];
+
+    async function member(app: FastifyInstance, mails: Message[], email = 'ivan@test.com') {
+      await app.inject({ method: 'POST', url: '/api/auth/register', payload: { email, password: PASSWORD, confirmPassword: PASSWORD, ...PROFILE } });
+      const mail = [...mails].reverse().find((m) => m.to === email)!;
+      await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token: token(mail, 'activate') } });
+      return signIn(app, email, PASSWORD);
+    }
+
+    it('resets a forgotten password with a single-use link and signs the person out everywhere', async () => {
+      const { app, mails } = await setup();
+      const headers = await member(app, mails);
+      const forgot = (email: string) => app.inject({ method: 'POST', url: '/api/auth/forgot', payload: { email } });
+      expect((await forgot('nobody@test.com')).json()).toEqual({ ok: true });
+      expect(mails.filter((m) => m.subject.includes('Reset'))).toHaveLength(0);
+      expect((await forgot('IVAN@test.com')).json()).toEqual({ ok: true });
+      const mail = mails.find((m) => m.subject.includes('Reset'))!;
+      expect(mail.text).toContain('https://app.test/?reset=');
+      const reset = (body: object) => app.inject({ method: 'POST', url: '/api/auth/reset', payload: { token: token(mail, 'reset'), ...body } });
+
+      expect((await reset({ password: 'weak', confirmPassword: 'weak' })).statusCode).toBe(400);
+      expect((await reset({ password: 'New-Passw0rd!x', confirmPassword: 'New-Passw0rd?x' })).statusCode).toBe(400);
+      expect((await reset({ password: 'New-Passw0rd!x', confirmPassword: 'New-Passw0rd!x' })).statusCode).toBe(200);
+      expect((await reset({ password: 'Other-Passw0rd!x', confirmPassword: 'Other-Passw0rd!x' })).statusCode).toBe(400); // used up
+
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).statusCode).toBe(401); // old session ended
+      const old = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'ivan@test.com', password: PASSWORD } });
+      expect(old.statusCode).toBe(401);
+      await signIn(app, 'ivan@test.com', 'New-Passw0rd!x');
+    });
+
+    it('locks an account for a while after 5 wrong passwords', async () => {
+      const { app } = await setup();
+      const wrong = () => app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: ADMIN.email, password: 'wrong-password' } });
+      for (let i = 0; i < 5; i++) expect((await wrong()).statusCode).toBe(401);
+      expect((await wrong()).statusCode).toBe(429);
+      // even the right password is refused while locked
+      const right = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: ADMIN.email, password: ADMIN.password } });
+      expect(right.statusCode).toBe(429);
+    });
+
+    it('lets a member edit the profile, change the password and export the data', async () => {
+      const { app, mails } = await setup();
+      const headers = await member(app, mails);
+      const patch = await app.inject({ method: 'PATCH', url: '/api/account', headers, payload: { firstName: 'Georgi', lastName: 'Ivanov', city: 'Varna', address: 'ul. Morska 5', phone: '' } });
+      expect(patch.statusCode).toBe(200);
+      expect(patch.json().user).toMatchObject({ firstName: 'Georgi', city: 'Varna', phone: null });
+      expect((await app.inject({ method: 'PATCH', url: '/api/account', headers, payload: { firstName: '', lastName: 'x', city: 'x', address: 'x' } })).statusCode).toBe(400);
+
+      const change = (body: object) => app.inject({ method: 'POST', url: '/api/account/password', headers, payload: body });
+      expect((await change({ currentPassword: 'nope', newPassword: 'New-Passw0rd!x', confirmPassword: 'New-Passw0rd!x' })).statusCode).toBe(403);
+      expect((await change({ currentPassword: PASSWORD, newPassword: 'weak', confirmPassword: 'weak' })).statusCode).toBe(400);
+      expect((await change({ currentPassword: PASSWORD, newPassword: 'New-Passw0rd!x', confirmPassword: 'New-Passw0rd!x' })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).statusCode).toBe(200); // this session stays
+      await signIn(app, 'ivan@test.com', 'New-Passw0rd!x');
+
+      const exp = await app.inject({ method: 'GET', url: '/api/account/export', headers });
+      expect(exp.headers['content-disposition']).toContain('attachment');
+      expect(exp.json().account).toMatchObject({ email: 'ivan@test.com', firstName: 'Georgi', city: 'Varna' });
+      expect(JSON.stringify(exp.json())).not.toMatch(/hash|Passw0rd/);
+    });
+
+    it('changes the e-mail only after the link sent to the new address is opened', async () => {
+      const { app, mails } = await setup();
+      const headers = await member(app, mails);
+      const start = (body: object) => app.inject({ method: 'POST', url: '/api/account/email', headers, payload: body });
+      expect((await start({ newEmail: 'new@test.com', password: 'wrong' })).statusCode).toBe(403);
+      expect((await start({ newEmail: ADMIN.email, password: PASSWORD })).statusCode).toBe(409);
+      expect((await start({ newEmail: 'New@Test.com', password: PASSWORD })).json()).toEqual({ emailSent: true });
+      const mail = mails[mails.length - 1];
+      expect(mail.to).toBe('New@Test.com');
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).json().user.email).toBe('ivan@test.com');
+      const confirm = () => app.inject({ method: 'POST', url: '/api/auth/confirm-email', payload: { token: token(mail, 'confirm-email') } });
+      expect((await confirm()).statusCode).toBe(200);
+      expect((await confirm()).statusCode).toBe(400);
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).json().user.email).toBe('new@test.com');
+    });
+
+    it('deletes an account after the password is confirmed, but never the admin', async () => {
+      const { app, mails } = await setup();
+      const headers = await member(app, mails);
+      expect((await app.inject({ method: 'DELETE', url: '/api/account', headers, payload: { password: 'wrong' } })).statusCode).toBe(403);
+      expect((await app.inject({ method: 'DELETE', url: '/api/account', headers, payload: { password: PASSWORD } })).statusCode).toBe(204);
+      expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).statusCode).toBe(401);
+      expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'ivan@test.com', password: PASSWORD } })).statusCode).toBe(401);
+      const admin = await signIn(app);
+      expect((await app.inject({ method: 'DELETE', url: '/api/account', headers: admin, payload: { password: ADMIN.password } })).statusCode).toBe(403);
+    });
+
+    it('ignores honeypot registrations and requires the CAPTCHA when one is configured', async () => {
+      const verify = vi.fn(async (t: string | undefined) => t === 'good');
+      const { app, mails } = await setup({ captcha: { siteKey: 'site-key', verify } });
+      expect((await app.inject({ method: 'GET', url: '/api/config' })).json()).toEqual({ turnstileSiteKey: 'site-key' });
+      const body = { email: 'bot@test.com', password: PASSWORD, confirmPassword: PASSWORD, ...PROFILE };
+      const reg = (extra: object) => app.inject({ method: 'POST', url: '/api/auth/register', payload: { ...body, ...extra } });
+      expect((await reg({})).statusCode).toBe(400);
+      expect((await reg({ captchaToken: 'bad' })).statusCode).toBe(400);
+      expect(mails).toHaveLength(0);
+      const trap = await reg({ website: 'http://spam.example' });
+      expect(trap.statusCode).toBe(201); // looks like success to the bot...
+      expect(mails).toHaveLength(0); // ...but nothing was created or sent
+      expect((await reg({ captchaToken: 'good' })).statusCode).toBe(201);
+      expect(mails).toHaveLength(1);
+      expect((await app.inject({ method: 'POST', url: '/api/auth/forgot', payload: { email: 'x@test.com' } })).statusCode).toBe(400);
+    });
+
+    it('removes registrations that were never activated', async () => {
+      const { app, mails, db } = await setup();
+      await app.inject({ method: 'POST', url: '/api/auth/register', payload: { email: 'old@test.com', password: PASSWORD, confirmPassword: PASSWORD, ...PROFILE } });
+      const again = () => app.inject({ method: 'POST', url: '/api/auth/register', payload: { email: 'old@test.com', password: PASSWORD, confirmPassword: PASSWORD, ...PROFILE } });
+      expect((await again()).statusCode).toBe(409);
+      db.prepare(`UPDATE users SET created_at = datetime('now', '-25 hours') WHERE email = 'old@test.com'`).run();
+      expect((await again()).statusCode).toBe(201); // the stale, never-activated one was purged
+      expect(mails).toHaveLength(2);
+    });
   });
 });

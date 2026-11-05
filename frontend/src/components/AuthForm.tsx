@@ -1,20 +1,16 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api, type User } from '../api/client';
+import { Captcha } from './Captcha';
+import { PasswordRules } from './PasswordRules';
 import { PASSWORD_MIN, passwordProblems } from '../utils/password';
 
-const RULES: [string, (p: string, email: string) => boolean][] = [
-  [`At least ${PASSWORD_MIN} characters`, (p) => p.length >= PASSWORD_MIN],
-  ['A lowercase letter', (p) => /[a-z]/.test(p)],
-  ['An uppercase letter', (p) => /[A-Z]/.test(p)],
-  ['A digit', (p) => /[0-9]/.test(p)],
-  ['A special character (! ? # $ % & *)', (p) => /[^A-Za-z0-9\s]/.test(p)],
-  ['No spaces, no 3 identical characters in a row, not your email name, not a common password', (p, e) =>
-    p.length > 0 && !passwordProblems(p, e).some((m) => /space|repeat|email|common/i.test(m))],
-];
+type Mode = 'login' | 'register' | 'forgot' | 'reset';
 
-/** Sign-in / register screen shown until there is a session. */
+const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** Sign-in / register / forgotten-password screen shown until there is a session. */
 export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -22,31 +18,61 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   const [profile, setProfile] = useState({ firstName: '', lastName: '', city: '', address: '', phone: '' });
   const setField = (k: keyof typeof profile) => (e: { target: { value: string } }) =>
     setProfile({ ...profile, [k]: e.target.value });
+  const [honeypot, setHoneypot] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** E-mail of an account that still has to be activated (offers "send the link again"). */
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  /** Token from the password-reset link (/?reset=<token>). */
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaRound, setCaptchaRound] = useState(0);
 
-  // The link in the activation e-mail opens the app as /?activate=<token>.
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('activate');
-    if (!token) return;
+    api.config().then((c) => setSiteKey(c.turnstileSiteKey), () => undefined);
+
+    // Links in e-mails open the app as /?activate=<token> or /?reset=<token>.
+    const params = new URLSearchParams(window.location.search);
+    const activate = params.get('activate');
+    const reset = params.get('reset');
+    if (!activate && !reset) return;
     window.history.replaceState(null, '', window.location.pathname);
-    api
-      .activate(token)
-      .then(() => setNotice('Your account is activated. You can sign in now.'))
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    if (reset) {
+      setResetToken(reset);
+      setMode('reset');
+    } else if (activate) {
+      api
+        .activate(activate)
+        .then(() => setNotice('Your account is activated. You can sign in now.'))
+        .catch((err) => setError(messageOf(err)));
+    }
   }, []);
+
+  const needsCaptcha = siteKey !== null && (mode === 'register' || mode === 'forgot');
+  const newCaptcha = () => {
+    setCaptchaToken('');
+    setCaptchaRound((n) => n + 1);
+  };
+
+  const go = (next: Mode) => {
+    setMode(next);
+    setError(null);
+    setNotice(null);
+    setConfirm('');
+    setAcceptTerms(false);
+    newCaptcha();
+  };
 
   const resend = async () => {
     if (!pendingEmail) return;
     setError(null);
     try {
-      await api.resendActivation(pendingEmail);
+      await api.resendActivation(pendingEmail, captchaToken || undefined);
       setNotice(`If ${pendingEmail} has an account waiting for activation, we sent a new link.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(messageOf(err));
     }
   };
 
@@ -54,49 +80,68 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
     e.preventDefault();
     setError(null);
     setNotice(null);
-    if (mode === 'register') {
+    if (mode === 'register' || mode === 'reset') {
       const problems = passwordProblems(password, email);
-      if (problems.length > 0) return setError(problems.join('. '));
+      if (problems.length > 0 && mode === 'register') return setError(problems.join('. '));
+      if (mode === 'reset' && problems.filter((p) => !/email/i.test(p)).length > 0) {
+        return setError(problems.join('. '));
+      }
       if (password !== confirm) return setError('The passwords do not match');
-      if (!acceptTerms) return setError('You must agree to the Terms and Conditions');
     }
+    if (mode === 'register' && !acceptTerms) return setError('You must agree to the Terms and Conditions and the Privacy Policy');
+    if (needsCaptcha && !captchaToken) return setError('Please complete the CAPTCHA check');
+
     setBusy(true);
     try {
       if (mode === 'login') {
         onSignedIn(await api.login({ email, password }));
-      } else {
-        const res = await api.register({ email, password, confirmPassword: confirm, ...profile, phone: profile.phone.trim() || undefined, acceptTerms });
+      } else if (mode === 'register') {
+        const res = await api.register({
+          email,
+          password,
+          confirmPassword: confirm,
+          ...profile,
+          phone: profile.phone.trim() || undefined,
+          acceptTerms,
+          captchaToken: captchaToken || undefined,
+          website: honeypot || undefined,
+        });
         setPendingEmail(res.email);
+        go('login');
         setPassword('');
-        setConfirm('');
-        setAcceptTerms(false);
-        setMode('login');
         setNotice(
           res.emailSent
             ? `Almost done! We sent an activation link to ${res.email}. Open it to activate your account, then sign in.`
-            : `Your account was created, but the activation email could not be sent. Press "Send the link again" below.`,
+            : 'Your account was created, but the activation email could not be sent. Press "Send the link again" below.',
         );
+      } else if (mode === 'forgot') {
+        await api.forgotPassword(email, captchaToken || undefined);
+        go('login');
+        setNotice(`If ${email} has an account, we sent a link to choose a new password. It is valid for 1 hour.`);
+      } else if (resetToken) {
+        await api.resetPassword({ token: resetToken, password, confirmPassword: confirm });
+        setResetToken(null);
+        setPassword('');
+        go('login');
+        setNotice('Your password was changed. Sign in with the new one.');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = messageOf(err);
       if (mode === 'login' && /not activated/i.test(message)) setPendingEmail(email);
       setError(message);
+      if (needsCaptcha) newCaptcha();
     } finally {
       setBusy(false);
     }
   };
 
-  const switchMode = () => {
-    setMode(mode === 'login' ? 'register' : 'login');
-    setError(null);
-    setConfirm('');
-    setAcceptTerms(false);
-  };
+  const title = { login: 'Sign in', register: 'Create an account', forgot: 'Forgot your password?', reset: 'Choose a new password' }[mode];
+  const button = { login: 'Sign in', register: 'Register', forgot: 'Send the link', reset: 'Change password' }[mode];
 
   return (
     <main className="auth">
       <section>
-        <h1>{mode === 'login' ? 'Sign in' : 'Create an account'}</h1>
+        <h1>{title}</h1>
         <p className="sub">CollectibleMarket · Pokémon TCG availability tracker</p>
         {error && <div className="banner error">{error}</div>}
         {notice && <div className="banner ok">{notice}</div>}
@@ -108,6 +153,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
             </button>
           </p>
         )}
+        {mode === 'forgot' && <p className="sub">Enter your email and we will send you a link to choose a new password.</p>}
         <form className="grid" onSubmit={submit}>
           {mode === 'register' && (
             <>
@@ -143,67 +189,81 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
               </label>
             </>
           )}
-          <label>
-            Email
-            <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              required
-              minLength={mode === 'register' ? PASSWORD_MIN : undefined}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          {mode === 'register' && (
+          {mode !== 'reset' && (
+            <label>
+              Email
+              <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </label>
+          )}
+          {mode !== 'forgot' && (
+            <label>
+              {mode === 'reset' ? 'New password' : 'Password'}
+              <input
+                type="password"
+                required
+                minLength={mode === 'login' ? undefined : PASSWORD_MIN}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+          )}
+          {(mode === 'register' || mode === 'reset') && (
             <>
               <label>
                 Confirm password
-                <input
-                  type="password"
-                  required
-                  autoComplete="new-password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                />
+                <input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
                 {confirm !== '' && confirm !== password && <span className="rule bad">The passwords do not match</span>}
               </label>
-              <ul className="rules">
-                {RULES.map(([label, ok]) => {
-                  const pass = ok(password, email);
-                  return (
-                    <li key={label} className={password === '' ? '' : pass ? 'ok' : 'bad'}>
-                      {pass && password !== '' ? '✓' : '○'} {label}
-                    </li>
-                  );
-                })}
-              </ul>
+              <PasswordRules password={password} email={email} />
+            </>
+          )}
+          {mode === 'register' && (
+            <>
+              {/* Honeypot: invisible to people, simple bots fill it in and get ignored. */}
+              <div className="hp" aria-hidden="true">
+                <label>
+                  Website
+                  <input tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
+                </label>
+              </div>
               <label className="inline">
                 <input type="checkbox" required checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />
                 <span>
                   I agree to the{' '}
                   <a href="/terms.html" target="_blank" rel="noopener noreferrer">
                     Terms and Conditions
+                  </a>{' '}
+                  and the{' '}
+                  <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
+                    Privacy Policy
                   </a>
                 </span>
               </label>
             </>
           )}
+          {needsCaptcha && siteKey && <Captcha key={`${mode}-${captchaRound}`} siteKey={siteKey} onToken={setCaptchaToken} />}
           <div>
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}
+              {busy ? 'Please wait…' : button}
             </button>
           </div>
         </form>
-        <p className="sub">
-          {mode === 'login' ? 'No account yet? ' : 'Already registered? '}
-          <button type="button" className="link" onClick={switchMode}>
-            {mode === 'login' ? 'Register' : 'Sign in'}
-          </button>
-        </p>
+        {mode === 'login' && (
+          <p className="sub">
+            <button type="button" className="link" onClick={() => go('forgot')}>
+              Forgot your password?
+            </button>
+          </p>
+        )}
+        {mode !== 'reset' && (
+          <p className="sub">
+            {mode === 'register' ? 'Already registered? ' : mode === 'forgot' ? 'Remembered it? ' : 'No account yet? '}
+            <button type="button" className="link" onClick={() => go(mode === 'login' ? 'register' : 'login')}>
+              {mode === 'login' ? 'Register' : 'Sign in'}
+            </button>
+          </p>
+        )}
       </section>
     </main>
   );
