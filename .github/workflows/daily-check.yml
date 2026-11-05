@@ -63,7 +63,10 @@ jobs:
       - name: Prepare GitHub Pages site
         id: pages-site
         if: always() && hashFiles('backend/report/report.html') != ''
-        run: mkdir -p ../_site && cp report/report.html ../_site/index.html
+        run: |
+          mkdir -p ../_site
+          cp report/report.html ../_site/index.html
+          printf 'User-agent: *\nDisallow: /\n' > ../_site/robots.txt
 
       - name: Upload GitHub Pages site
         if: always() && steps.pages-site.outcome == 'success'

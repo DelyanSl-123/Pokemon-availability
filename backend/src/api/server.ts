@@ -16,6 +16,7 @@ import type { DB } from '../db/connection';
 import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from '../db/repository';
 import type { Scheduler } from '../core/scheduler';
 import type { Service } from '../core/service';
+import { registerBotProtection, type SecurityOptions } from './security';
 import { normalizeShopInput } from '../shops/shop-urls';
 import type { Settings } from '../types';
 
@@ -28,6 +29,10 @@ export interface ServerDeps {
   staticDir?: string;
   /** Mark the session cookie Secure (set when the app is served over HTTPS). */
   secureCookies?: boolean;
+  /** Bot-protection limits (defaults are fine for normal use). */
+  security?: SecurityOptions;
+  /** Trust X-Forwarded-For (set when running behind a reverse proxy) so limits apply per real client. */
+  trustProxy?: boolean;
 }
 
 declare module 'fastify' {
@@ -82,7 +87,8 @@ const settingsSchema = z.object({
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, trustProxy: deps.trustProxy ?? false });
+  registerBotProtection(app, deps.security);
   await app.register(cors, { origin: true });
 
   app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {

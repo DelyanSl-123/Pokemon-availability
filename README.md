@@ -108,6 +108,12 @@ Built-in presets (unverified, edit them if a search returns nothing):
 
 For each shop's search-results page the parser tries, in order: schema.org JSON-LD products, common product-card markup (title, link, price in лв/BGN/€, in/out-of-stock text, lazy-loaded images), then plain links mentioning Pokémon. Results are kept only if they look like trading-card products (Pokémon + TCG/booster/карти/Elite Trainer/tin/…). When a card has no stock text, stock is read from its add-to-cart control (enabled = in stock, disabled = out of stock; on a page where some cards have one, a card without one counts as out of stock) and, on Shopify themes that only badge sold-out products, from the missing sold-out badge. These controls are only read, never used. This is generic by design; if a particular shop is missed, add a dedicated parser for it in `backend/src/scraping/extract.ts` (the HTML fixtures in `backend/test/fixtures/` show the test pattern).
 
+## Bot protection
+
+The web app (`backend/src/api/security.ts`) blocks automated access: requests from bots, crawlers, scripts (curl, python, headless browsers…) or without a User-Agent get `403`; every client address is limited to 120 requests/minute and 15 sign-in/register attempts per 10 minutes (`429` after that); `/robots.txt` disallows everything and all responses carry `X-Robots-Tag: noindex`. All data endpoints also need an account. Behind a reverse proxy set `TRUST_PROXY=true` so the limits use the real client address. A bot that fakes a normal browser User-Agent gets past the first check, so rely on the sign-in and the rate limits for real protection.
+
+The report on GitHub Pages is a static page: it has `noindex` and a `robots.txt` that ask search engines and well-behaved bots to stay away, but GitHub Pages cannot block anyone, so anyone with the link can open it. To really restrict it, put it behind Cloudflare Access / a password-protected host, or do not publish it and use `npm run report` locally.
+
 ## Things to know
 
 - **robots.txt:** it is obeyed by default per shop (checkbox in the Shops table). A shop that disallows the search page shows up as `blocked` in the last-run panel and in the report instead of being silently skipped. Check each shop's terms before turning this off.

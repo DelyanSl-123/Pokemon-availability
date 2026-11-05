@@ -53,6 +53,7 @@ async function main() {
     defaults,
     staticDir: fs.existsSync(frontendDist) ? frontendDist : undefined,
     secureCookies: process.env.COOKIE_SECURE === 'true',
+    trustProxy: process.env.TRUST_PROXY === 'true',
   });
 
   const settings = getSettings(db, defaults);
