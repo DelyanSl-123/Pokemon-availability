@@ -76,7 +76,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
+<meta name="robots" content="noindex, nofollow, noarchive">
 <title>CollectibleMarket · ${esc(when)}</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}">
 <style>
