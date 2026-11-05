@@ -1,5 +1,5 @@
 /**
- * Local report: checks every shop once (no email) and writes ONE self-contained HTML file with
+ * Local report: checks every shop once and writes ONE self-contained HTML file with
  * all results, then opens it in your browser.   npm run report
  */
 import 'dotenv/config';
@@ -8,7 +8,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createService } from './core/service';
 import { openDb } from './db/connection';
-import { mailConfigFromEnv } from './mail/mailer';
 import { writeReport } from './report/write';
 import { readManualShops, syncShops } from './shops/sync';
 import type { Settings } from './types';
@@ -29,7 +28,6 @@ async function main() {
   const reportFile = process.env.REPORT_FILE ?? path.resolve(process.cwd(), 'report', 'report.html');
 
   const defaults: Settings = {
-    mailTo: process.env.MAIL_TO || 'delyan.sl@gmail.com',
     cron: '0 9 * * *',
     query: process.env.SEARCH_QUERY || 'pokemon tcg',
   };
@@ -38,8 +36,8 @@ async function main() {
   if (fs.existsSync(shopsFile)) syncShops(db, shopsFile);
 
   console.log('Checking shops, this takes about a minute...');
-  const service = createService({ db, mail: mailConfigFromEnv(), defaults });
-  const { summary } = await service.runAndNotify('manual', { sendEmail: false });
+  const service = createService({ db, defaults });
+  const summary = await service.run('manual');
 
   // Locally the sign-in icon points at the web app on this PC unless APP_URL says otherwise.
   const written = writeReport(summary, reportFile, {

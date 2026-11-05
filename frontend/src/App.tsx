@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { api, ApiError, type Product, type RunOutcome, type RunSummary, type Settings, type Shop, type User } from './api/client';
+import { api, ApiError, type Product, type RunSummary, type Settings, type Shop, type User } from './api/client';
 import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
 import { StockBadge } from './components/StockBadge';
@@ -40,9 +40,7 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
   const [newShopUrl, setNewShopUrl] = useState('');
   const [newShopSearch, setNewShopSearch] = useState('');
 
-  const [sendEmail, setSendEmail] = useState(true);
   const [running, setRunning] = useState(false);
-  const [lastOutcome, setLastOutcome] = useState<RunOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -82,8 +80,7 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
       setRunning(true);
       setNotice(null);
       try {
-        const outcome = await api.run(sendEmail);
-        setLastOutcome(outcome);
+        await api.run();
         await loadAll();
       } finally {
         setRunning(false);
@@ -116,7 +113,7 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
       <header className="top">
         <div>
           <h1>Pokémon TCG Tracker</h1>
-          <p className="sub">Checks your shops once a day and emails what it finds.</p>
+          <p className="sub">Checks your shops once a day for Pokémon TCG products.</p>
         </div>
         <div className="side">
           <div className="account">
@@ -129,9 +126,6 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
           </div>
           {isAdmin && (
             <div className="run-box">
-              <label className="inline">
-                <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} /> Send email
-              </label>
               <button className="primary" onClick={runNow} disabled={running}>
                 {running ? 'Checking…' : 'Run check now'}
               </button>
@@ -142,10 +136,6 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
 
       {error && <div className="banner error">{error}</div>}
       {notice && <div className="banner ok">{notice}</div>}
-      {lastOutcome?.email && !lastOutcome.email.sent && (
-        <div className="banner warn">Email not sent: {lastOutcome.email.reason}</div>
-      )}
-      {lastOutcome?.email?.sent && <div className="banner ok">Email sent.</div>}
 
       <section>
         <h2>Last run</h2>
@@ -307,12 +297,8 @@ function Tracker({ user, onSignOut, onSessionExpired }: { user: User; onSignOut:
 
       {settings && (
         <section>
-          <h2>Daily email</h2>
+          <h2>Settings</h2>
           <form className="grid" onSubmit={saveSettings}>
-            <label>
-              Send to
-              <input type="email" required value={settings.mailTo} onChange={(e) => setSettings({ ...settings, mailTo: e.target.value })} />
-            </label>
             <label>
               Schedule (cron, server time zone)
               <input required value={settings.cron} onChange={(e) => setSettings({ ...settings, cron: e.target.value })} />

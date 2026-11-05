@@ -1,9 +1,9 @@
 # Pokémon TCG Tracker
 
-Checks a list of web shops once a day for Pokémon TCG products and emails you what it found and on which page. **Search only, it never buys anything.**
+Checks a list of web shops once a day for Pokémon TCG products and publishes what it found (product, price, stock, shop and link) as an HTML report. **Search only, it never buys anything.**
 
-- `backend/` TypeScript, Fastify, SQLite (better-sqlite3), Cheerio, node-cron, nodemailer
-- `frontend/` React + Vite + TypeScript: manage shops, see products, run a check, edit email/schedule
+- `backend/` TypeScript, Fastify, SQLite (better-sqlite3), Cheerio, node-cron
+- `frontend/` React + Vite + TypeScript: manage shops, see products, run a check, edit schedule
 
 ## Project structure
 
@@ -13,14 +13,13 @@ backend/
   config/shops.json                 shops to check (used by the daily run)
   src/
     index.ts                        long-running server: API + built-in scheduler
-    cli.ts                          one-shot run: sync shops, check, email, exit
+    cli.ts                          one-shot run: sync shops, check, write the report, exit
     types.ts                        shared types
     api/server.ts                   REST API (Fastify), sign-in and role checks
     auth/                           users.ts (accounts, admin, sessions), passwords.ts (scrypt hashing)
-    core/                           checker.ts (run a check), service.ts (check + email), scheduler.ts (cron)
+    core/                           checker.ts (run a check), service.ts (run a check), scheduler.ts (cron)
     scraping/                       fetcher.ts (HTTP + robots.txt), robots.ts (parser), extract.ts (find products)
     shops/shop-urls.ts              shop URL helpers and rules
-    mail/mailer.ts                  email digest + SMTP sending
     db/                             connection.ts (SQLite + schema), repository.ts (queries)
   test/                             mirrors src/, plus fixtures/ (sample HTML)
 frontend/
@@ -37,7 +36,7 @@ frontend/
 ```bash
 cd backend
 npm install        # first time only
-npm run report     # checks every shop (no email) and opens report/report.html in your browser
+npm run report     # checks every shop and opens report/report.html in your browser
 ```
 
 `backend/report/report.html` is a single self-contained file, branded **CollectibleMarket** (logo in `assets/collectiblemarket-logo.svg`, also built into the page and used as its tab icon): product cards with image, name, shop, price and stock label, a search box, shop / "in stock" / "new" filters (click a shop to filter by it), sorting and the status of each shop, with a link to each shop's search page when grouped by shop. Tick **Compare** on 2 to 5 products and press **Compare** in the bar at the bottom to see them side by side (price and difference to the cheapest, stock, shop, flags) on a comparison page at `report.html#compare/…`; that link can be bookmarked or shared, and the choice is remembered in the browser. It adapts to phone widths and dark mode. It needs no server to open (product images load from the shops' sites).
@@ -54,7 +53,7 @@ Needs Node 20+ (22 recommended). Run these on the machine that will stay on (PC,
 # 1. backend
 cd backend
 npm install
-cp .env.example .env      # fill in the SMTP_* values (see "Email" below)
+cp .env.example .env      # set the admin account (see "Accounts" below)
 npm test                  # unit tests
 npm run dev               # API on http://127.0.0.1:3001
 
@@ -74,7 +73,7 @@ The web UI needs a sign-in. There are two roles:
 
 | Role | Who | Can |
 | --- | --- | --- |
-| **Admin** | only the account set in `ADMIN_EMAIL` | everything: add/edit/remove shops, run a check, change email/schedule settings |
+| **Admin** | only the account set in `ADMIN_EMAIL` | everything: add/edit/remove shops, run a check, change schedule/search settings |
 | **User** | anyone who registers on the sign-in screen | view products, shops and the last run |
 
 Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. On every start the backend creates that account (or updates its password) and makes it the only admin. Registering can never create an admin, and nobody can register with the admin's email. Passwords are stored as salted scrypt hashes; sign-in uses an HttpOnly session cookie valid for 30 days. If you serve the app over HTTPS, set `COOKIE_SECURE=true`.
@@ -83,25 +82,18 @@ Only people who can reach the backend can register, so others can only sign up i
 
 ## Run daily on GitHub Actions (no server needed)
 
-`.github/workflows/daily-check.yml` runs `npm run check` every day at 06:00 UTC (09:00 Sofia in summer, 08:00 in winter), checks all shops once and sends the email.
+`.github/workflows/daily-check.yml` runs `npm run check` every day at 06:00 UTC (09:00 Sofia in summer, 08:00 in winter), checks all shops once and publishes the report.
 
-1. In the repo go to **Settings → Secrets and variables → Actions → New repository secret** and add: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (see "Email" below). `MAIL_TO` is optional and defaults to delyan.sl@gmail.com.
-2. Edit the shop list in `backend/config/shops.json` (commit the change; add `"searchUrl"` or `"enabled": false` per shop if needed).
-3. Test it: **Actions → Daily Pokemon TCG check → Run workflow**.
+1. Edit the shop list in `backend/config/shops.json` (commit the change; add `"searchUrl"` or `"enabled": false` per shop if needed).
+2. Test it: **Actions → Daily Pokemon TCG check → Run workflow**.
 
 Notes: the SQLite file is kept between runs with the Actions cache (so NEW / BACK IN STOCK flags work); if the cache is ever lost, everything simply shows as NEW once. GitHub may block scheduled workflows in public repos after 60 days without activity, and some shops block data-centre IPs, so check the first runs' output.
-
-## Email
-
-Without `SMTP_HOST` the digest is only printed to the server log. For Gmail: turn on 2-step verification, create an **App password**, then use `smtp.gmail.com`, port `465`, `SMTP_SECURE=true`, your address as `SMTP_USER` and the app password as `SMTP_PASS`.
-
-Each digest lists, per shop: the product, price, stock state and link, with `NEW` and `BACK IN STOCK` flags. Shops that could not be checked are listed with the reason.
 
 ## Adding / changing shops
 
 Use the **Shops** table in the UI (or `POST /api/shops`). Type just `www.example.bg`; the search URL defaults to `https://www.example.bg/search?q={query}`. If a shop uses a different search URL, edit it in the table, `{query}` is replaced with the search phrase (default `pokemon tcg`, editable under settings).
 
-A shop can also be a fixed category/listing page: give a `searchUrl` **without** `{query}` (e.g. the Pokemon Center UK page `https://www.pokemoncenter.com/en-gb/category/tcg-cards`). Every product on such a page is treated as a match. Out-of-stock products are labelled `[OUT OF STOCK]` in the email and sorted last. Note that pokemoncenter.com loads products with JavaScript and may block bots, so it can show up as `blocked` or `0 found`.
+A shop can also be a fixed category/listing page: give a `searchUrl` **without** `{query}` (e.g. the Pokemon Center UK page `https://www.pokemoncenter.com/en-gb/category/tcg-cards`). Every product on such a page is treated as a match. Out-of-stock products are labelled `[OUT OF STOCK]` in the report and sorted last. Note that pokemoncenter.com loads products with JavaScript and may block bots, so it can show up as `blocked` or `0 found`.
 
 A shop that blocks the tracker (e.g. toyzzshop.bg, whose Cloudflare protection answers with HTTP 403) can be kept on the list with `"manual": true` and an optional `"note"`. It is never fetched or stored in the database; the HTML report shows it in the Shops row as **Check manually ↗**, linking to its `searchUrl` (or home page), so it can be checked by hand.
 
@@ -128,6 +120,6 @@ Accounts (no sign-in needed): `POST /api/auth/register {email, password}`, `POST
 
 Signed in (any user): `GET /api/shops`, `GET /api/products?shopId=&inStock=true`, `GET /api/runs`.
 
-Admin only: `POST /api/shops`, `PATCH/DELETE /api/shops/:id`, `POST /api/run {sendEmail}`, `GET/PUT /api/settings`.
+Admin only: `POST /api/shops`, `PATCH/DELETE /api/shops/:id`, `POST /api/run`, `GET/PUT /api/settings`.
 
 Without a session the API answers `401`; a regular user calling an admin endpoint gets `403`.

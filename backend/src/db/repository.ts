@@ -68,7 +68,6 @@ export function getSettings(db: DB, defaults: Settings): Settings {
   const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
   const stored = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
-    mailTo: stored.mailTo ?? defaults.mailTo,
     cron: stored.cron ?? defaults.cron,
     query: stored.query ?? defaults.query,
   };

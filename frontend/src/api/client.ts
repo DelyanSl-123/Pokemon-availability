@@ -41,14 +41,8 @@ export interface RunSummary {
 }
 
 export interface Settings {
-  mailTo: string;
   cron: string;
   query: string;
-}
-
-export interface RunOutcome {
-  summary: RunSummary;
-  email: { sent: boolean; reason?: string } | null;
 }
 
 export interface User {
@@ -100,7 +94,7 @@ export const api = {
     return request<Product[]>(`/products?${params}`);
   },
   runs: () => request<RunSummary[]>('/runs'),
-  run: (sendEmail: boolean) => request<RunOutcome>('/run', { method: 'POST', body: json({ sendEmail }) }),
+  run: () => request<RunSummary>('/run', { method: 'POST', body: json({}) }),
   settings: () => request<Settings>('/settings'),
   saveSettings: (body: Partial<Settings>) => request<Settings>('/settings', { method: 'PUT', body: json(body) }),
 };

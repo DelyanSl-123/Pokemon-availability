@@ -72,7 +72,6 @@ const shopPatchSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  mailTo: z.string().email().optional(),
   cron: z
     .string()
     .refine((v) => cron.validate(v), { message: 'Invalid cron expression' })
@@ -199,9 +198,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/api/runs', async () => listRuns(deps.db, 20));
 
   app.post('/api/run', { preHandler: requireAdmin }, async (req, reply) => {
-    const body = z.object({ sendEmail: z.boolean().optional() }).parse(req.body ?? {});
     if (deps.service.isRunning()) return reply.status(409).send({ error: 'A check is already running' });
-    return deps.service.runAndNotify('manual', { sendEmail: body.sendEmail });
+    return deps.service.run('manual');
   });
 
   /* ---- settings ---- */
