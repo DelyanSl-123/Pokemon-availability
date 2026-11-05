@@ -54,7 +54,6 @@ export interface RunSummary {
 }
 
 export interface Settings {
-  mailTo: string;
   cron: string;
   query: string;
 }

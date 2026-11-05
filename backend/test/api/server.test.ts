@@ -10,8 +10,8 @@ async function setup() {
   const db = openDb(':memory:');
   ensureAdmin(db, ADMIN.email, ADMIN.password);
   const scheduler = { start: vi.fn(), stop: vi.fn() };
-  const service = { isRunning: () => false, runAndNotify: vi.fn() };
-  const defaults = { mailTo: 'me@test.com', cron: '0 9 * * *', query: 'pokemon tcg' };
+  const service = { isRunning: () => false, run: vi.fn() };
+  const defaults = { cron: '0 9 * * *', query: 'pokemon tcg' };
   const app = await buildServer({ db, service: service as never, scheduler, defaults });
   return { app, scheduler, service };
 }
@@ -69,19 +69,19 @@ describe('API', () => {
       method: 'PUT',
       url: '/api/settings',
       headers,
-      payload: { cron: '30 8 * * *', mailTo: 'other@test.com' },
+      payload: { cron: '30 8 * * *' },
     });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toEqual({ mailTo: 'other@test.com', cron: '30 8 * * *', query: 'pokemon tcg' });
+    expect(ok.json()).toEqual({ cron: '30 8 * * *', query: 'pokemon tcg' });
     expect(scheduler.start).toHaveBeenCalledWith('30 8 * * *');
   });
 
   it('runs a manual check', async () => {
     const { app, service } = await setup();
-    service.runAndNotify.mockResolvedValue({ summary: { products: [] }, email: { sent: false } });
-    const res = await app.inject({ method: 'POST', url: '/api/run', headers: await signIn(app), payload: { sendEmail: false } });
+    service.run.mockResolvedValue({ products: [] });
+    const res = await app.inject({ method: 'POST', url: '/api/run', headers: await signIn(app), payload: {} });
     expect(res.statusCode).toBe(200);
-    expect(service.runAndNotify).toHaveBeenCalledWith('manual', { sendEmail: false });
+    expect(service.run).toHaveBeenCalledWith('manual');
   });
 });
 
@@ -118,7 +118,7 @@ describe('API accounts', () => {
     expect((await app.inject({ method: 'POST', url: '/api/run', headers, payload: {} })).statusCode).toBe(403);
     expect((await app.inject({ method: 'GET', url: '/api/settings', headers })).statusCode).toBe(403);
     expect((await app.inject({ method: 'PUT', url: '/api/settings', headers, payload: { query: 'abc' } })).statusCode).toBe(403);
-    expect(service.runAndNotify).not.toHaveBeenCalled();
+    expect(service.run).not.toHaveBeenCalled();
   });
 
   it('never lets registration create or take over the admin account', async () => {

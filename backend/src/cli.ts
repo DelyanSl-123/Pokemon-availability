@@ -1,12 +1,11 @@
 /**
  * One-shot run for schedulers such as GitHub Actions: sync the shop list from
- * config/shops.json, check every shop once, send the email digest, then exit.
+ * config/shops.json, check every shop once, write the HTML report, then exit.
  */
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { openDb } from './db/connection';
-import { mailConfigFromEnv } from './mail/mailer';
 import { createService } from './core/service';
 import { writeReport } from './report/write';
 import { readManualShops, syncShops } from './shops/sync';
@@ -17,7 +16,6 @@ async function main() {
   const shopsFile = process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json');
 
   const defaults: Settings = {
-    mailTo: process.env.MAIL_TO || 'delyan.sl@gmail.com',
     cron: '0 9 * * *',
     query: process.env.SEARCH_QUERY || 'pokemon tcg',
   };
@@ -29,8 +27,8 @@ async function main() {
     console.log(`No ${shopsFile} found, using the shops already in the database.`);
   }
 
-  const service = createService({ db, mail: mailConfigFromEnv(), defaults });
-  const { summary, email } = await service.runAndNotify('schedule');
+  const service = createService({ db, defaults });
+  const summary = await service.run('schedule');
 
   const lines: string[] = [
     `Checked ${summary.shops.length} shop(s), ${summary.products.length} product(s) found.`,
@@ -39,7 +37,6 @@ async function main() {
     const detail = s.status === 'ok' ? `${s.found} found, ${s.newCount} new` : `${s.status}: ${s.message ?? ''}`;
     lines.push(`- ${s.shopName}: ${detail}`);
   }
-  lines.push(email?.sent ? `Email sent to ${defaults.mailTo}.` : `EMAIL NOT SENT: ${email?.reason ?? 'disabled'}`);
   console.log(lines.join('\n'));
 
   // HTML report of everything found; the workflow publishes it to GitHub Pages and uploads it as a file.
@@ -63,13 +60,6 @@ async function main() {
   // Show the result on the workflow run page (Summary), not only in the raw log.
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Pokémon TCG check\n\n${lines.join('\n')}\n`);
-  }
-
-  // Fail the run when no email went out, so a missing/wrong SMTP setup is not hidden behind a green tick.
-  if (!email?.sent) {
-    // `::error::` shows the reason as an annotation at the top of the run page.
-    console.log(`::error title=Email not sent::${email?.reason ?? 'disabled'}`);
-    process.exitCode = 1;
   }
 }
 

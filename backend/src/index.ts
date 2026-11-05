@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ensureAdmin } from './auth/users';
 import { openDb } from './db/connection';
-import { mailConfigFromEnv } from './mail/mailer';
 import { createShop, getSettings, listShops } from './db/repository';
 import { createScheduler } from './core/scheduler';
 import { buildServer } from './api/server';
@@ -18,7 +17,6 @@ async function main() {
   const timezone = process.env.SCHEDULE_TZ ?? 'Europe/Sofia';
 
   const defaults: Settings = {
-    mailTo: process.env.MAIL_TO ?? 'delyan.sl@gmail.com',
     cron: process.env.DEFAULT_CRON ?? '0 9 * * *', // every day at 09:00
     query: process.env.SEARCH_QUERY ?? 'pokemon tcg',
   };
@@ -44,8 +42,8 @@ async function main() {
     console.log('ADMIN_EMAIL not set: nobody can manage shops, run checks or change settings in the web UI.');
   }
 
-  const service = createService({ db, mail: mailConfigFromEnv(), defaults });
-  const scheduler = createScheduler(() => service.runAndNotify('schedule'), timezone);
+  const service = createService({ db, defaults });
+  const scheduler = createScheduler(() => service.run('schedule'), timezone);
 
   const frontendDist = path.resolve(__dirname, '..', '..', 'frontend', 'dist');
   const app = await buildServer({
@@ -62,8 +60,7 @@ async function main() {
 
   await app.listen({ port, host: process.env.HOST ?? '127.0.0.1' });
   console.log(`Pokemon tracker API on http://127.0.0.1:${port}`);
-  console.log(`Daily check: "${settings.cron}" (${timezone}) -> ${settings.mailTo}`);
-  if (!process.env.SMTP_HOST) console.log('SMTP_HOST not set: digests will be printed here instead of emailed.');
+  console.log(`Daily check: "${settings.cron}" (${timezone})`);
 }
 
 main().catch((e) => {
