@@ -172,7 +172,7 @@ describe('API accounts', () => {
   });
 
   it('validates registration input', async () => {
-    const { app } = await setup();
+    const { app, mails } = await setup();
     const reg = (payload: object) => app.inject({ method: 'POST', url: '/api/auth/register', payload });
     const good = { email: 'a@test.com', password: 'Str0ng-Passw0rd!', confirmPassword: 'Str0ng-Passw0rd!', ...PROFILE };
     expect((await reg({ ...good, email: 'nope' })).statusCode).toBe(400);
@@ -190,12 +190,16 @@ describe('API accounts', () => {
       expect((await reg({ ...good, [missing]: '  ' })).statusCode, missing).toBe(400);
     }
     expect((await reg({ ...good, phone: 'abc' })).statusCode).toBe(400);
-    const ok = await reg({ ...good, phone: '+359 88 123 4567' });
-    expect(ok.statusCode).toBe(201);
-    expect(ok.json().user).toMatchObject({ firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', phone: '+359 88 123 4567' });
-    const noPhone = await reg({ ...good, email: 'b@test.com' });
-    expect(noPhone.statusCode).toBe(201);
-    expect(noPhone.json().user.phone).toBeNull();
+    // the saved details come back once the account is activated and signed in
+    const signInAfterActivation = async (email: string) => {
+      const token = /activate=([\w-]+)/.exec([...mails].reverse().find((m) => m.to === email)!.text)![1];
+      await app.inject({ method: 'POST', url: '/api/auth/activate', payload: { token } });
+      return (await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email, password: good.password } })).json().user;
+    };
+    expect((await reg({ ...good, phone: '+359 88 123 4567' })).statusCode).toBe(201);
+    expect(await signInAfterActivation('a@test.com')).toMatchObject({ firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', phone: '+359 88 123 4567' });
+    expect((await reg({ ...good, email: 'b@test.com' })).statusCode).toBe(201);
+    expect((await signInAfterActivation('b@test.com')).phone).toBeNull();
   });
 
   it('rejects a wrong password and ends the session on logout', async () => {
