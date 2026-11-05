@@ -99,7 +99,7 @@ describe('API accounts', () => {
     const reg = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: ' Viewer@Test.com ', password: 'viewer-password' },
+      payload: { email: ' Viewer@Test.com ', password: 'Sunny-Day#2024x', confirmPassword: 'Sunny-Day#2024x' },
     });
     expect(reg.statusCode).toBe(201);
     expect(reg.json().user).toMatchObject({ email: 'viewer@test.com', role: 'user' });
@@ -126,7 +126,7 @@ describe('API accounts', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: 'ADMIN@test.com', password: 'something-else' },
+      payload: { email: 'ADMIN@test.com', password: 'Something-Else#9', confirmPassword: 'Something-Else#9' },
     });
     expect(res.statusCode).toBe(409);
     const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers: await signIn(app) });
@@ -135,10 +135,17 @@ describe('API accounts', () => {
 
   it('validates registration input', async () => {
     const { app } = await setup();
-    const short = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { email: 'a@test.com', password: 'short' } });
-    expect(short.statusCode).toBe(400);
-    const notEmail = await app.inject({ method: 'POST', url: '/api/auth/register', payload: { email: 'nope', password: 'long-enough' } });
-    expect(notEmail.statusCode).toBe(400);
+    const reg = (payload: object) => app.inject({ method: 'POST', url: '/api/auth/register', payload });
+    const good = { email: 'a@test.com', password: 'Str0ng-Passw0rd!', confirmPassword: 'Str0ng-Passw0rd!' };
+    expect((await reg({ ...good, email: 'nope' })).statusCode).toBe(400);
+    for (const password of ['Sh0rt!a', 'alllowercase1!', 'ALLUPPERCASE1!', 'NoDigitsHere!!', 'NoSpecial1234x', 'Has Space-1234x']) {
+      expect((await reg({ ...good, password, confirmPassword: password })).statusCode, password).toBe(400);
+    }
+    const mismatch = await reg({ ...good, confirmPassword: 'Str0ng-Passw0rd?' });
+    expect(mismatch.statusCode).toBe(400);
+    expect(mismatch.json().error).toContain('do not match');
+    expect((await reg({ email: good.email, password: good.password })).statusCode).toBe(400);
+    expect((await reg(good)).statusCode).toBe(201);
   });
 
   it('rejects a wrong password and ends the session on logout', async () => {

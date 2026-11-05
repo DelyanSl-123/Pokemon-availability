@@ -16,6 +16,7 @@ import type { DB } from '../db/connection';
 import { createShop, deleteShop, getSettings, listProducts, listRuns, listShops, saveSettings, updateShop } from '../db/repository';
 import type { Scheduler } from '../core/scheduler';
 import type { Service } from '../core/service';
+import { passwordProblems } from '../auth/password-rules';
 import { registerBotProtection, type SecurityOptions } from './security';
 import { normalizeShopInput } from '../shops/shop-urls';
 import type { Settings } from '../types';
@@ -58,9 +59,14 @@ const credentialsSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-const registerSchema = credentialsSchema.extend({
-  password: z.string().min(8, { message: 'Use at least 8 characters' }).max(200),
-});
+const registerSchema = credentialsSchema
+  .extend({ password: z.string().max(200), confirmPassword: z.string().max(200) })
+  .superRefine((v, ctx) => {
+    if (v.password !== v.confirmPassword) {
+      ctx.addIssue({ code: 'custom', path: ['confirmPassword'], message: 'The passwords do not match' });
+    }
+    for (const message of passwordProblems(v.password, v.email)) ctx.addIssue({ code: 'custom', path: ['password'], message });
+  });
 
 const shopCreateSchema = z.object({
   url: z.string().min(3),

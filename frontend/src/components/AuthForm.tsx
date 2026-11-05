@@ -1,20 +1,37 @@
 import { FormEvent, useState } from 'react';
 import { api, type User } from '../api/client';
+import { PASSWORD_MIN, passwordProblems } from '../utils/password';
+
+const RULES: [string, (p: string, email: string) => boolean][] = [
+  [`At least ${PASSWORD_MIN} characters`, (p) => p.length >= PASSWORD_MIN],
+  ['A lowercase letter', (p) => /[a-z]/.test(p)],
+  ['An uppercase letter', (p) => /[A-Z]/.test(p)],
+  ['A digit', (p) => /[0-9]/.test(p)],
+  ['A special character (! ? # $ % & *)', (p) => /[^A-Za-z0-9\s]/.test(p)],
+  ['No spaces, no 3 identical characters in a row, not your email name, not a common password', (p, e) =>
+    p.length > 0 && !passwordProblems(p, e).some((m) => /space|repeat|email|common/i.test(m))],
+];
 
 /** Sign-in / register screen shown until there is a session. */
 export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (mode === 'register') {
+      const problems = passwordProblems(password, email);
+      if (problems.length > 0) return setError(problems.join('. '));
+      if (password !== confirm) return setError('The passwords do not match');
+    }
     setBusy(true);
     try {
-      onSignedIn(await (mode === 'login' ? api.login : api.register)({ email, password }));
+      onSignedIn(await (mode === 'login' ? api.login({ email, password }) : api.register({ email, password, confirmPassword: confirm })));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -25,6 +42,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   const switchMode = () => {
     setMode(mode === 'login' ? 'register' : 'login');
     setError(null);
+    setConfirm('');
   };
 
   return (
@@ -43,13 +61,37 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
             <input
               type="password"
               required
-              minLength={mode === 'register' ? 8 : undefined}
+              minLength={mode === 'register' ? PASSWORD_MIN : undefined}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            {mode === 'register' && <span className="sub">At least 8 characters</span>}
           </label>
+          {mode === 'register' && (
+            <>
+              <label>
+                Confirm password
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                />
+                {confirm !== '' && confirm !== password && <span className="rule bad">The passwords do not match</span>}
+              </label>
+              <ul className="rules">
+                {RULES.map(([label, ok]) => {
+                  const pass = ok(password, email);
+                  return (
+                    <li key={label} className={password === '' ? '' : pass ? 'ok' : 'bad'}>
+                      {pass && password !== '' ? '✓' : '○'} {label}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
           <div>
             <button type="submit" className="primary" disabled={busy}>
               {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Register'}
