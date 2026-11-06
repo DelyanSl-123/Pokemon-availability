@@ -94,6 +94,19 @@ New passwords (registration) must have at least 10 characters, a lowercase lette
 
 Only people who can reach the backend can register, so others can only sign up if you host it somewhere public. The GitHub Pages report is separate and has no sign-in.
 
+## Run it with Docker
+
+One image runs the whole app (the backend serves the built frontend).
+
+```
+cp backend/.env.example backend/.env    # then fill it in (admin password, SMTP, ...)
+docker compose up --build
+```
+
+Open http://localhost:3001. The database is kept in the `app-data` volume, so accounts survive restarts and rebuilds. `HOST`, `PORT` and `DB_PATH` are set by the image; the other values come from `backend/.env`. Over plain `http://localhost` keep `COOKIE_SECURE=false`.
+
+To deploy, build the same image on the host (Render, Fly.io, Railway, a VPS) and set the variables from `backend/.env` in its panel instead of a file. Mount a persistent disk at `/data`, set `COOKIE_SECURE=true`, `TRUST_PROXY=true` and `APP_URL` to the public address.
+
 ## Run daily on GitHub Actions (no server needed)
 
 `.github/workflows/daily-check.yml` runs `npm run check` every day at 06:00 UTC (09:00 Sofia in summer, 08:00 in winter), checks all shops once and publishes the report.
