@@ -50,6 +50,14 @@ describe('bot protection on the API', () => {
     expect(ok.headers['x-robots-tag']).toContain('noindex');
   });
 
+  it('lets a hosting platform health check through without a browser user agent', async () => {
+    const app = await setup();
+    const res = await app.inject({ method: 'GET', url: '/api/health', headers: { 'user-agent': 'Render/1.0' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    await app.close();
+  });
+
   it('rate limits requests and sign-in attempts', async () => {
     const app = await setup({ requestsPerMinute: 5, loginAttemptsPer10Min: 2 });
     const h = { 'user-agent': BROWSER };

@@ -94,6 +94,10 @@ New passwords (registration) must have at least 10 characters, a lowercase lette
 
 Only people who can reach the backend can register, so others can only sign up if you host it somewhere public. The GitHub Pages report is separate and has no sign-in.
 
+## Deploy on Render
+
+`render.yaml` is a Render Blueprint: one web service (paid "Starter" instance) with a 1 GB disk at `/data` for the database. In Render choose New, Blueprint, pick this repo, and fill in the secrets it asks for (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, optional Turnstile keys). Then add `collectiblemarket.bg` under Settings, Custom Domains, and create the DNS records Render shows at your domain registrar. Render sets `PORT` itself and checks `/api/health`.
+
 ## Run daily on GitHub Actions (no server needed)
 
 `.github/workflows/daily-check.yml` runs `npm run check` every day at 06:00 UTC (09:00 Sofia in summer, 08:00 in winter), checks all shops once and publishes the report.
