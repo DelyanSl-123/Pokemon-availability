@@ -47,8 +47,4 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
-      # Optional captcha: leave empty to keep it off.
-      - key: TURNSTILE_SITE_KEY
-        sync: false
-      - key: TURNSTILE_SECRET
-        sync: false
+      # Optional captcha: add TURNSTILE_SITE_KEY and TURNSTILE_SECRET later under Environment.

@@ -96,7 +96,7 @@ Only people who can reach the backend can register, so others can only sign up i
 
 ## Deploy on Render
 
-`render.yaml` is a Render Blueprint: one web service (paid "Starter" instance) with a 1 GB disk at `/data` for the database. In Render choose New, Blueprint, pick this repo, and fill in the secrets it asks for (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, optional Turnstile keys). Then add `collectiblemarket.bg` under Settings, Custom Domains, and create the DNS records Render shows at your domain registrar. Render sets `PORT` itself and checks `/api/health`.
+`render.yaml` is a Render Blueprint: one web service (paid "Starter" instance) with a 1 GB disk at `/data` for the database. In Render choose New, Blueprint, pick this repo, and fill in the secrets it asks for (`ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`; the optional Turnstile keys can be added later under Environment). Then add `collectiblemarket.bg` under Settings, Custom Domains, and create the DNS records Render shows at your domain registrar. Render sets `PORT` itself and checks `/api/health`.
 
 ## Run daily on GitHub Actions (no server needed)
 
