@@ -12,6 +12,11 @@ export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
   const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
+  /** The sign-in / register screen is only shown on request (or from an email link). */
+  const [auth, setAuth] = useState<'login' | 'register' | null>(() => {
+    const q = new URLSearchParams(window.location.search);
+    return q.has('activate') || q.has('reset') ? 'login' : null;
+  });
 
   useEffect(() => {
     // The link in the "confirm your new email" message opens the app as /?confirm-email=<token>.
@@ -36,12 +41,20 @@ export default function App() {
           {flash.text}
         </div>
       )}
-      {user === null ? (
-        <AuthForm onSignedIn={setUser} />
+      {user === null && auth ? (
+        <AuthForm
+          initialMode={auth}
+          onSignedIn={(u) => {
+            setUser(u);
+            setAuth(null);
+          }}
+          onClose={new URLSearchParams(window.location.search).has('activate') || new URLSearchParams(window.location.search).has('reset') ? undefined : () => setAuth(null)}
+        />
       ) : (
         <Tracker
           user={user}
           onUserChange={setUser}
+          onSignIn={(mode) => setAuth(mode)}
           onSignOut={() => {
             void api.logout().catch(() => undefined);
             setUser(null);
@@ -56,16 +69,19 @@ export default function App() {
 function Tracker({
   user,
   onUserChange,
+  onSignIn,
   onSignOut,
   onSessionExpired,
 }: {
-  user: User;
+  /** null = visitor who is not signed in: sees products and shops, nothing else. */
+  user: User | null;
   onUserChange: (user: User) => void;
+  onSignIn: (mode: 'login' | 'register') => void;
   onSignOut: () => void;
   onSessionExpired: () => void;
 }) {
   const [showAccount, setShowAccount] = useState(false);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user?.role === 'admin';
   const [shops, setShops] = useState<Shop[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -158,7 +174,7 @@ function Tracker({
 
   return (
     <main>
-      {showAccount && (
+      {showAccount && user && (
         <AccountPanel
           user={user}
           onClose={() => setShowAccount(false)}
@@ -173,15 +189,28 @@ function Tracker({
         </div>
         <div className="side">
           <div className="account">
-            <span>
-              {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
-            </span>
-            <button className="link" onClick={() => setShowAccount(true)}>
-              My account
-            </button>
-            <button className="link" onClick={onSignOut}>
-              Sign out
-            </button>
+            {user ? (
+              <>
+                <span>
+                  {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
+                </span>
+                <button className="link" onClick={() => setShowAccount(true)}>
+                  My account
+                </button>
+                <button className="link" onClick={onSignOut}>
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="link" onClick={() => onSignIn('login')}>
+                  Sign in
+                </button>
+                <button className="primary" onClick={() => onSignIn('register')}>
+                  Register
+                </button>
+              </>
+            )}
           </div>
           {isAdmin && (
             <div className="run-box">
