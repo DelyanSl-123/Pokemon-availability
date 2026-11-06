@@ -91,12 +91,18 @@ describe('API', () => {
 });
 
 describe('API accounts', () => {
-  it('requires signing in for everything except health and auth', async () => {
+  it('lets anyone read products, shops, games and runs, and requires signing in for everything else', async () => {
     const { app } = await setup();
     expect((await app.inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200);
-    expect((await app.inject({ method: 'GET', url: '/api/products' })).statusCode).toBe(401);
-    expect((await app.inject({ method: 'GET', url: '/api/shops?x=1' })).statusCode).toBe(401);
+    for (const url of ['/api/products', '/api/shops?x=1', '/api/games', '/api/runs']) {
+      expect((await app.inject({ method: 'GET', url })).statusCode).toBe(200);
+    }
     expect((await app.inject({ method: 'GET', url: '/api/auth/me' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/settings' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/account/export' })).statusCode).toBe(401);
+    // reading is public, changing is not
+    expect((await app.inject({ method: 'POST', url: '/api/shops', payload: { url: 'www.example.bg' } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/run' })).statusCode).toBe(401);
   });
 
   it('registers a regular user who can view but not manage', async () => {
@@ -212,7 +218,7 @@ describe('API accounts', () => {
     const out = await app.inject({ method: 'POST', url: '/api/auth/logout', headers });
     expect(out.statusCode).toBe(204);
     expect(String(out.headers['set-cookie'])).toContain('Max-Age=0');
-    expect((await app.inject({ method: 'GET', url: '/api/products', headers })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers })).statusCode).toBe(401);
   });
 
   describe('accounts', () => {
@@ -335,12 +341,13 @@ describe('API accounts', () => {
   });
 
   describe('games menu', () => {
-    it('lists the built-in games to anyone signed in and lets only the admin add, change and delete games', async () => {
+    it('lists the built-in games to everyone and lets only the admin add, change and delete games', async () => {
       const { app, mails } = await setup();
       const admin = await signIn(app);
       const list = await app.inject({ method: 'GET', url: '/api/games', headers: admin });
       expect(list.json().map((g: { slug: string }) => g.slug)).toEqual(['pokemon', 'onepiece', 'yugioh', 'mtg']);
-      expect((await app.inject({ method: 'GET', url: '/api/games' })).statusCode).toBe(401);
+      expect((await app.inject({ method: 'GET', url: '/api/games' })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'POST', url: '/api/games', payload: { name: 'Nope' } })).statusCode).toBe(401);
 
       const created = await app.inject({ method: 'POST', url: '/api/games', headers: admin, payload: { name: 'Dragon Ball', keywords: 'dragon ball, dbs' } });
       expect(created.statusCode).toBe(201);

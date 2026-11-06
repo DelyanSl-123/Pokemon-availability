@@ -10,8 +10,17 @@ type Mode = 'login' | 'register' | 'forgot' | 'reset';
 const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /** Sign-in / register / forgotten-password screen shown until there is a session. */
-export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
-  const [mode, setMode] = useState<Mode>('login');
+export function AuthForm({
+  onSignedIn,
+  onClose,
+  initialMode = 'login',
+}: {
+  onSignedIn: (user: User) => void;
+  /** Back to the public home page (not shown when opened from an email link). */
+  onClose?: () => void;
+  initialMode?: 'login' | 'register';
+}) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -144,6 +153,13 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   return (
     <main className="auth">
       <section>
+        {onClose && (
+          <p>
+            <button type="button" className="link" onClick={onClose}>
+              ← Back to products
+            </button>
+          </p>
+        )}
         <h1>{title}</h1>
         <p className="sub">CollectibleMarket · Pokémon TCG availability tracker</p>
         {mode === 'register' && (

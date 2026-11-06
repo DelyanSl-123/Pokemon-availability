@@ -85,6 +85,9 @@ const SESSION_COOKIE = 'cm_session';
 /** API paths that work without being signed in. */
 const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config']);
 
+/** Read-only data that anyone may look at without signing in: the home page of the site. */
+const PUBLIC_GET_PATHS = new Set(['/api/shops', '/api/games', '/api/products', '/api/runs']);
+
 function readCookie(req: FastifyRequest, name: string): string | undefined {
   for (const part of (req.headers.cookie ?? '').split(';')) {
     const eq = part.indexOf('=');
@@ -188,7 +191,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     const token = readCookie(req, SESSION_COOKIE);
     req.user = token ? userForSession(deps.db, token) : null;
     const pathOnly = req.url.split('?')[0];
-    if (pathOnly.startsWith('/api/') && !PUBLIC_PATHS.has(pathOnly) && !req.user) {
+    const publicRead = req.method === 'GET' && PUBLIC_GET_PATHS.has(pathOnly);
+    if (pathOnly.startsWith('/api/') && !PUBLIC_PATHS.has(pathOnly) && !publicRead && !req.user) {
       return reply.status(401).send({ error: 'Please sign in' });
     }
   });
