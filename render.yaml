@@ -1,0 +1,54 @@
+# Render Blueprint: one web service that builds and serves the whole app
+# (the backend serves the built frontend). Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: collectiblemarket
+    runtime: node
+    plan: starter            # smallest paid instance; needed for a persistent disk
+    region: frankfurt        # closest to Bulgaria
+    buildCommand: >-
+      cd backend && npm install --include=dev --no-audit --no-fund && npm run build &&
+      cd ../frontend && npm install --include=dev --no-audit --no-fund && npm run build
+    startCommand: cd backend && node dist/index.js
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /data       # the SQLite database lives here and survives restarts and deploys
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_PATH
+        value: /data/tracker.db
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: APP_URL
+        value: https://collectiblemarket.bg
+      - key: SCHEDULE_TZ
+        value: Europe/Sofia
+      # Secrets and personal values: Render asks for them when the Blueprint is created.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_SECURE
+        value: "true"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # Optional captcha: leave empty to keep it off.
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET
+        sync: false

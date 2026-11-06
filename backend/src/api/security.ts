@@ -76,6 +76,9 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
     const path = req.url.split('?')[0];
     if (path === '/robots.txt') return reply.type('text/plain').send(ROBOTS_TXT);
 
+    // Hosting platforms ping this with their own agent (e.g. "Render/1.0"); it only returns {ok:true}.
+    if (path === '/api/health') return;
+
     if (looksLikeBot(req.headers['user-agent'])) {
       return reply.status(403).send({ error: 'Automated access is not allowed' });
     }

@@ -41,13 +41,21 @@ describe('rate limiter', () => {
 describe('bot protection on the API', () => {
   it('blocks bot user agents with 403 and lets browsers through', async () => {
     const app = await setup();
-    const bot = await app.inject({ method: 'GET', url: '/api/health', headers: { 'user-agent': 'curl/8.5.0' } });
+    const bot = await app.inject({ method: 'GET', url: '/api/config', headers: { 'user-agent': 'curl/8.5.0' } });
     expect(bot.statusCode).toBe(403);
-    const none = await app.inject({ method: 'GET', url: '/api/health', headers: { 'user-agent': '' } });
+    const none = await app.inject({ method: 'GET', url: '/api/config', headers: { 'user-agent': '' } });
     expect(none.statusCode).toBe(403);
-    const ok = await app.inject({ method: 'GET', url: '/api/health', headers: { 'user-agent': BROWSER } });
+    const ok = await app.inject({ method: 'GET', url: '/api/config', headers: { 'user-agent': BROWSER } });
     expect(ok.statusCode).toBe(200);
     expect(ok.headers['x-robots-tag']).toContain('noindex');
+  });
+
+  it('lets a hosting platform health check through without a browser user agent', async () => {
+    const app = await setup();
+    const res = await app.inject({ method: 'GET', url: '/api/health', headers: { 'user-agent': 'Render/1.0' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    await app.close();
   });
 
   it('rate limits requests and sign-in attempts', async () => {
@@ -59,7 +67,7 @@ describe('bot protection on the API', () => {
     expect((await login()).statusCode).toBe(429);
     const flood = await setup({ requestsPerMinute: 3 });
     const codes = [];
-    for (let i = 0; i < 5; i++) codes.push((await flood.inject({ method: 'GET', url: '/api/health', headers: h })).statusCode);
+    for (let i = 0; i < 5; i++) codes.push((await flood.inject({ method: 'GET', url: '/api/config', headers: h })).statusCode);
     expect(codes).toEqual([200, 200, 200, 429, 429]);
   });
 
