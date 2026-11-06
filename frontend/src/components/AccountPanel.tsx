@@ -112,19 +112,19 @@ export function AccountPanel({
         </p>
         <form className="grid" onSubmit={saveProfile}>
           <label>
-            First name<Req />
+            <span>First name<Req /></span>
             <input required maxLength={60} value={profile.firstName} onChange={setField('firstName')} />
           </label>
           <label>
-            Last name<Req />
+            <span>Last name<Req /></span>
             <input required maxLength={60} value={profile.lastName} onChange={setField('lastName')} />
           </label>
           <label>
-            City<Req />
+            <span>City<Req /></span>
             <input required maxLength={80} value={profile.city} onChange={setField('city')} />
           </label>
           <label>
-            Address<Req />
+            <span>Address<Req /></span>
             <input required maxLength={200} value={profile.address} onChange={setField('address')} />
           </label>
           <label>
@@ -145,11 +145,11 @@ export function AccountPanel({
             <h3>Change email</h3>
             <form className="grid" onSubmit={changeEmail}>
               <label>
-                New email<Req />
+                <span>New email<Req /></span>
                 <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </label>
               <label>
-                Your password<Req />
+                <span><span>Your password<Req /></span></span>
                 <input type="password" required autoComplete="current-password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} />
               </label>
               <div>
@@ -162,15 +162,15 @@ export function AccountPanel({
         <h3>Change password</h3>
         <form className="grid" onSubmit={changePassword}>
           <label>
-            Current password<Req />
+            <span>Current password<Req /></span>
             <input type="password" required autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
           </label>
           <label>
-            New password<Req />
+            <span>New password<Req /></span>
             <input type="password" required minLength={PASSWORD_MIN} autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
           </label>
           <label>
-            Confirm new password<Req />
+            <span>Confirm new password<Req /></span>
             <input type="password" required autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
             {pw.confirm !== '' && pw.confirm !== pw.next && <span className="rule bad">The passwords do not match</span>}
           </label>
@@ -202,7 +202,7 @@ export function AccountPanel({
             <h3>Delete account</h3>
             <form className="grid" onSubmit={deleteAccount}>
               <label>
-                Your password<Req />
+                <span><span>Your password<Req /></span></span>
                 <input type="password" required autoComplete="current-password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
               </label>
               <div>
