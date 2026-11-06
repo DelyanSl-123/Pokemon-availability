@@ -1,3 +1,4 @@
+import { Req } from './Req';
 import { FormEvent, useState } from 'react';
 import { api, type User } from '../api/client';
 import { PasswordRules } from './PasswordRules';
@@ -106,21 +107,24 @@ export function AccountPanel({
         {notice && <div className="banner ok">{notice}</div>}
 
         <h3>Your details</h3>
+        <p className="sub">
+          <span className="req">*</span> required field
+        </p>
         <form className="grid" onSubmit={saveProfile}>
           <label>
-            First name
+            First name<Req />
             <input required maxLength={60} value={profile.firstName} onChange={setField('firstName')} />
           </label>
           <label>
-            Last name
+            Last name<Req />
             <input required maxLength={60} value={profile.lastName} onChange={setField('lastName')} />
           </label>
           <label>
-            City
+            City<Req />
             <input required maxLength={80} value={profile.city} onChange={setField('city')} />
           </label>
           <label>
-            Address
+            Address<Req />
             <input required maxLength={200} value={profile.address} onChange={setField('address')} />
           </label>
           <label>
@@ -141,7 +145,7 @@ export function AccountPanel({
             <h3>Change email</h3>
             <form className="grid" onSubmit={changeEmail}>
               <label>
-                New email
+                New email<Req />
                 <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </label>
               <label>
@@ -158,15 +162,15 @@ export function AccountPanel({
         <h3>Change password</h3>
         <form className="grid" onSubmit={changePassword}>
           <label>
-            Current password
+            Current password<Req />
             <input type="password" required autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
           </label>
           <label>
-            New password
+            New password<Req />
             <input type="password" required minLength={PASSWORD_MIN} autoComplete="new-password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
           </label>
           <label>
-            Confirm new password
+            Confirm new password<Req />
             <input type="password" required autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
             {pw.confirm !== '' && pw.confirm !== pw.next && <span className="rule bad">The passwords do not match</span>}
           </label>

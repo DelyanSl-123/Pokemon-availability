@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, type User } from '../api/client';
 import { Captcha } from './Captcha';
 import { PasswordRules } from './PasswordRules';
+import { Req } from './Req';
 import { PASSWORD_MIN, passwordProblems } from '../utils/password';
 
 type Mode = 'login' | 'register' | 'forgot' | 'reset';
@@ -50,6 +51,8 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
     }
   }, []);
 
+  /** Required-field mark: only on the forms that create or change an account. */
+  const star = mode === 'register' || mode === 'reset' ? <Req /> : null;
   const needsCaptcha = siteKey !== null && (mode === 'register' || mode === 'forgot');
   const newCaptcha = () => {
     setCaptchaToken('');
@@ -143,6 +146,11 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
       <section>
         <h1>{title}</h1>
         <p className="sub">CollectibleMarket · Pokémon TCG availability tracker</p>
+        {mode === 'register' && (
+          <p className="sub">
+            <span className="req">*</span> required field
+          </p>
+        )}
         {error && <div className="banner error">{error}</div>}
         {notice && <div className="banner ok">{notice}</div>}
         {pendingEmail && mode === 'login' && (
@@ -158,19 +166,19 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
           {mode === 'register' && (
             <>
               <label>
-                First name
+                First name<Req />
                 <input required maxLength={60} autoComplete="given-name" value={profile.firstName} onChange={setField('firstName')} />
               </label>
               <label>
-                Last name
+                Last name<Req />
                 <input required maxLength={60} autoComplete="family-name" value={profile.lastName} onChange={setField('lastName')} />
               </label>
               <label>
-                City
+                City<Req />
                 <input required maxLength={80} autoComplete="address-level2" value={profile.city} onChange={setField('city')} />
               </label>
               <label>
-                Address
+                Address<Req />
                 <input required maxLength={200} autoComplete="street-address" value={profile.address} onChange={setField('address')} />
               </label>
               <label>
@@ -191,13 +199,14 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
           )}
           {mode !== 'reset' && (
             <label>
-              Email
+              Email{star}
               <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
           )}
           {mode !== 'forgot' && (
             <label>
               {mode === 'reset' ? 'New password' : 'Password'}
+              {star}
               <input
                 type="password"
                 required
@@ -211,7 +220,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
           {(mode === 'register' || mode === 'reset') && (
             <>
               <label>
-                Confirm password
+                Confirm password<Req />
                 <input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
                 {confirm !== '' && confirm !== password && <span className="rule bad">The passwords do not match</span>}
               </label>
@@ -238,6 +247,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
                   <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
                     Privacy Policy
                   </a>
+                  <Req />
                 </span>
               </label>
             </>
