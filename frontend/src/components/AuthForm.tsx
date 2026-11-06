@@ -166,19 +166,19 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
           {mode === 'register' && (
             <>
               <label>
-                First name<Req />
+                <span>First name<Req /></span>
                 <input required maxLength={60} autoComplete="given-name" value={profile.firstName} onChange={setField('firstName')} />
               </label>
               <label>
-                Last name<Req />
+                <span>Last name<Req /></span>
                 <input required maxLength={60} autoComplete="family-name" value={profile.lastName} onChange={setField('lastName')} />
               </label>
               <label>
-                City<Req />
+                <span>City<Req /></span>
                 <input required maxLength={80} autoComplete="address-level2" value={profile.city} onChange={setField('city')} />
               </label>
               <label>
-                Address<Req />
+                <span>Address<Req /></span>
                 <input required maxLength={200} autoComplete="street-address" value={profile.address} onChange={setField('address')} />
               </label>
               <label>
@@ -199,14 +199,16 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
           )}
           {mode !== 'reset' && (
             <label>
-              Email{star}
+              <span>Email{star}</span>
               <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
           )}
           {mode !== 'forgot' && (
             <label>
-              {mode === 'reset' ? 'New password' : 'Password'}
-              {star}
+              <span>
+                {mode === 'reset' ? 'New password' : 'Password'}
+                {star}
+              </span>
               <input
                 type="password"
                 required
@@ -220,7 +222,7 @@ export function AuthForm({ onSignedIn }: { onSignedIn: (user: User) => void }) {
           {(mode === 'register' || mode === 'reset') && (
             <>
               <label>
-                Confirm password<Req />
+                <span>Confirm password<Req /></span>
                 <input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
                 {confirm !== '' && confirm !== password && <span className="rule bad">The passwords do not match</span>}
               </label>
