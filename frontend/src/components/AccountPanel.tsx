@@ -149,7 +149,7 @@ export function AccountPanel({
                 <input type="email" required value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </label>
               <label>
-                Your password
+                Your password<Req />
                 <input type="password" required autoComplete="current-password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} />
               </label>
               <div>
@@ -202,7 +202,7 @@ export function AccountPanel({
             <h3>Delete account</h3>
             <form className="grid" onSubmit={deleteAccount}>
               <label>
-                Your password
+                Your password<Req />
                 <input type="password" required autoComplete="current-password" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
               </label>
               <div>
