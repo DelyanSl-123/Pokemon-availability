@@ -41,5 +41,29 @@
     "name": "mgames.bg",
     "searchUrl": "https://mgames.bg/product-category/%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%B2%D0%B8-%D0%B8%D0%B3%D1%80%D0%B8/pokemon/",
     "manual": true
+  },
+  {
+    "url": "https://www.ozone.bg",
+    "name": "ozone.bg",
+    "searchUrl": "https://www.ozone.bg/pazeli-2d-3d/nastolni-igri/trading-card-games/one-piece/",
+    "game": "onepiece"
+  },
+  {
+    "url": "https://www.ozone.bg",
+    "name": "ozone.bg",
+    "searchUrl": "https://www.ozone.bg/pazeli-2d-3d/nastolni-igri/yu-gi-oh/",
+    "game": "yugioh"
+  },
+  {
+    "url": "https://itcg.bg",
+    "name": "itcg.bg",
+    "searchUrl": "https://itcg.bg/collections/magic-the-gathering",
+    "game": "mtg"
+  },
+  {
+    "url": "https://kamatogames.com",
+    "name": "kamatogames.com",
+    "searchUrl": "https://kamatogames.com/en/collections/one-piece",
+    "game": "onepiece"
   }
 ]
