@@ -101,8 +101,8 @@ describe('API accounts', () => {
     expect((await app.inject({ method: 'GET', url: '/api/settings' })).statusCode).toBe(401);
     expect((await app.inject({ method: 'GET', url: '/api/account/export' })).statusCode).toBe(401);
     // reading is public, changing is not
-    expect((await app.inject({ method: 'POST', url: '/api/shops', payload: { url: 'www.example.bg' } })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'POST', url: '/api/run' })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: '/api/shops', payload: { url: 'www.example.bg' } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/run' })).statusCode).toBe(401);
   });
 
   it('registers a regular user who can view but not manage', async () => {
@@ -347,7 +347,7 @@ describe('API accounts', () => {
       const list = await app.inject({ method: 'GET', url: '/api/games', headers: admin });
       expect(list.json().map((g: { slug: string }) => g.slug)).toEqual(['pokemon', 'onepiece', 'yugioh', 'mtg']);
       expect((await app.inject({ method: 'GET', url: '/api/games' })).statusCode).toBe(200);
-      expect((await app.inject({ method: 'POST', url: '/api/games', payload: { name: 'Nope' } })).statusCode).toBe(403);
+      expect((await app.inject({ method: 'POST', url: '/api/games', payload: { name: 'Nope' } })).statusCode).toBe(401);
 
       const created = await app.inject({ method: 'POST', url: '/api/games', headers: admin, payload: { name: 'Dragon Ball', keywords: 'dragon ball, dbs' } });
       expect(created.statusCode).toBe(201);
