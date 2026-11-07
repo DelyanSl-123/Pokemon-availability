@@ -36,16 +36,107 @@ export interface ReportOptions {
   signInUrl?: string;
   /** Shops that are never checked automatically; listed with a link to check them by hand. */
   manualShops?: { name: string; url: string; note: string; game?: string }[];
+  /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
+  seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
+}
+
+const trimSlash = (u: string) => u.replace(/\/+$/, '');
+
+function seoTitle(game?: { name: string }): string {
+  return game
+    ? `${game.name} карти и продукти в България – цени и наличност | CollectibleMarket`
+    : 'CollectibleMarket – TCG карти в България: Pokémon, One Piece, Yu-Gi-Oh!, Magic | цени и наличност';
+}
+
+function jsonLd(o: unknown): string {
+  return `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
+}
+
+/** Meta description, canonical, Open Graph and structured data for the public pages. */
+function seoHead(
+  baseUrl: string,
+  game: { slug: string; name: string } | undefined,
+  games: { slug: string; name: string }[],
+  products: RunSummary['products'],
+  label: (shop: string, game: string) => string,
+): string {
+  const base = trimSlash(baseUrl);
+  const url = game ? `${base}/games/${game.slug}` : `${base}/`;
+  const list = products.filter((p) => !game || (p.game ?? 'pokemon') === game.slug);
+  const names = games.map((g) => g.name).join(', ');
+  const desc = game
+    ? `Всички ${game.name} TCG продукти от български онлайн магазини на едно място: бустери, кутии и колоди с цени, наличност и директни линкове. Сравни и намери най-добрата оферта.`
+    : `Следим цените и наличностите на TCG карти (${names}) в български онлайн магазини. Бустери, кутии и колоди с цени и директни линкове – намери най-добрата оферта.`;
+  const title = seoTitle(game);
+  const items = list.slice(0, 40).map((p, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    item: {
+      '@type': 'Product',
+      name: p.title,
+      url: p.url,
+      ...(p.imageUrl ? { image: p.imageUrl } : {}),
+      ...(p.price != null && p.currency
+        ? {
+            offers: {
+              '@type': 'Offer',
+              price: p.price,
+              priceCurrency: p.currency,
+              url: p.url,
+              seller: { '@type': 'Organization', name: label(p.shopName, p.game ?? 'pokemon') },
+              ...(p.inStock === true ? { availability: 'https://schema.org/InStock' } : p.inStock === false ? { availability: 'https://schema.org/OutOfStock' } : {}),
+            },
+          }
+        : {}),
+    },
+  }));
+  const blocks = [
+    jsonLd({ '@context': 'https://schema.org', '@type': 'WebSite', name: 'CollectibleMarket', url: `${base}/`, inLanguage: 'bg' }),
+    jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'CollectibleMarket', item: `${base}/` },
+        ...(game ? [{ '@type': 'ListItem', position: 2, name: game.name, item: url }] : []),
+      ],
+    }),
+    ...(items.length > 0 ? [jsonLd({ '@context': 'https://schema.org', '@type': 'ItemList', name: game ? `${game.name} продукти` : 'TCG продукти', itemListElement: items })] : []),
+  ];
+  return [
+    `<meta name="description" content="${esc(desc)}">`,
+    `<link rel="canonical" href="${esc(url)}">`,
+    '<meta property="og:type" content="website">',
+    '<meta property="og:site_name" content="CollectibleMarket">',
+    '<meta property="og:locale" content="bg_BG">',
+    `<meta property="og:title" content="${esc(title)}">`,
+    `<meta property="og:description" content="${esc(desc)}">`,
+    `<meta property="og:url" content="${esc(url)}">`,
+    '<meta name="twitter:card" content="summary">',
+    ...blocks,
+  ].join('\n');
+}
+
+/** Plain list of the products for visitors and crawlers without JavaScript. */
+function crawlableList(products: RunSummary['products'], label: (shop: string, game: string) => string): string {
+  if (products.length === 0) return '';
+  const rows = products.slice(0, 60).map((p) => {
+    const price = p.price != null ? ` – ${p.price.toFixed(2)} ${esc(p.currency ?? '')}` : '';
+    return `<li><a href="${esc(p.url)}" rel="nofollow noopener">${esc(p.title)}</a> (${esc(label(p.shopName, p.game ?? 'pokemon'))})${price}</li>`;
+  });
+  return `<noscript><ul>${rows.join('')}</ul></noscript>`;
 }
 
 export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): string {
   // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
   const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
   const signIn = opts.signInUrl && /^(https?:\/\/|\/)/i.test(opts.signInUrl) ? opts.signInUrl : appUrl;
+  // The register link opens the same screen in registration mode (?login becomes ?register).
+  const registerUrl = /[?&]login\b/.test(signIn) ? signIn.replace(/([?&])login\b/, '$1register') : signIn + (signIn.includes('?') ? '&' : '?') + 'register';
   const accountLink = signIn
     ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
-      '<span>Sign in</span></a>'
+      '<span>Sign in</span></a>' +
+      `<a class="account reg" href="${esc(registerUrl)}" title="Create an account" aria-label="Register"><span>Register</span></a>`
     : '';
   // The menu: the games that were checked. Older summaries (before games existed) are all Pokémon.
   const games = summary.games && summary.games.length > 0 ? summary.games : [{ slug: 'pokemon', name: 'Pokémon' }];
@@ -85,13 +176,32 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     })),
   };
 
+  const seo = opts.seo;
+  const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
+  const initialGame = seoGame ? seoGame.slug : '';
+  const head = seo ? seoHead(seo.baseUrl, seoGame, games, summary.products, label) : '';
+  const robotsMeta = seo
+    ? '<meta name="robots" content="index, follow, max-image-preview:large">'
+    : '<meta name="robots" content="noindex, nofollow, noarchive">';
+  const pageTitle = seo ? seoTitle(seoGame) : `CollectibleMarket · ${when}`;
+  const h1Text = seoGame
+    ? `${seoGame.name} TCG products in Bulgarian shops: prices and availability`
+    : 'Trading card games in Bulgarian shops: Pokémon, One Piece, Yu-Gi-Oh! and Magic prices and availability';
+  const crawlList = seo ? crawlableList(summary.products.filter((p) => !seoGame || (p.game ?? 'pokemon') === seoGame.slug), label) : '';
+  const gameLinks = seo
+    ? '<nav class="sub" aria-label="Games">' +
+      games.map((g) => `<a href="${esc(seo.baseUrl.replace(/\/+$/, ''))}/games/${esc(g.slug)}">${esc(g.name)}</a>`).join(' · ') +
+      '</nav>'
+    : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow, noarchive">
-<title>CollectibleMarket · ${esc(when)}</title>
+${robotsMeta}
+<title>${esc(pageTitle)}</title>
+${head}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}">
 <style>
   :root {
@@ -116,14 +226,18 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   /* hero */
   .brand { display:flex; align-items:center; gap:14px; }
   .brand svg { width:52px; height:52px; flex:none; filter:drop-shadow(0 4px 10px rgba(227,53,13,.35)); }
-  h1 { margin:0; font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
-  h1 span { color:var(--accent); }
+  .bname { font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
+  .bname span { color:var(--accent); }
   .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
+  .account.reg { margin-left:6px; padding:7px 16px; background:var(--accent); border-color:var(--accent); color:#fff; }
+  .account.reg:hover { filter:brightness(1.08); background:var(--accent); border-color:var(--accent); }
   .account:hover { background:var(--hero-hover); border-color:var(--muted); }
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
-  @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
+  @media (max-width:1400px) { .gamenav button { padding:20px 9px; font-size:.88rem; } .account:not(.reg) span { display:none; } .account:not(.reg) { padding:8px; } }
+  @media (max-width:480px) { .account:not(.reg) { display:none; } .account.reg { padding:7px 12px; margin-left:0; } }
 
   /* game banners */
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   .banners { position:relative; margin:18px 0 6px; border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
   .track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; scroll-behavior:smooth; }
   .track::-webkit-scrollbar { display:none; }
@@ -152,7 +266,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .bar { display:flex; align-items:center; gap:14px; height:60px; }
   .bar .brand { gap:10px; flex:none; }
   .bar .brand svg { width:34px; height:34px; filter:none; }
-  .bar h1 { font-size:1.2rem; }
+  .bar .bname { font-size:1.2rem; }
   .gamenav { display:flex; gap:2px; margin-left:18px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .gamenav::-webkit-scrollbar { display:none; }
   .gamenav button, .drawer .glist button { font:inherit; cursor:pointer; background:none; border:0; color:inherit; }
@@ -176,6 +290,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .burger { display:none; }
   .fpanel { position:absolute; top:100%; right:0; left:0; }
   .fpanel .wrap { display:flex; justify-content:flex-end; }
+  .filterbar { position:sticky; top:var(--tbh,62px); z-index:25; background:var(--bg); padding:12px 0; margin-top:6px; display:flex; align-items:center; gap:12px; }
+  .filterbar .fbtn { margin-left:0; color:var(--text); background:var(--surface); border-color:var(--line); box-shadow:var(--shadow); height:42px; padding:0 20px 0 16px; }
+  .filterbar .fbtn span.t { display:inline; }
+  .filterbar .fpanel { top:calc(100% - 4px); }
+  .filterbar .fpanel .wrap { padding:0; justify-content:flex-start; max-width:none; }
+
   .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
   .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
   .fpanel .row select { flex:1; min-width:0; }
@@ -194,11 +314,11 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   @media (max-width:860px) {
     .burger { display:inline-flex; } .gamenav { display:none; }
     .search.topsearch, .search.topsearch:focus-within { flex:1; width:auto; } .gamenav + .fbtn { margin-left:0; }
-    .bar { gap:10px; } .bar h1 { font-size:1.05rem; } .gamenav + .fbtn { margin-left:auto; }
+    .bar { gap:10px; } .bar .bname { font-size:1.05rem; } .gamenav + .fbtn { margin-left:auto; }
   }
   @media (min-width:861px) { .drawer, .scrim { display:none; } }
-  @media (max-width:560px) { .bar .brand h1 { display:none; } }
-  @media (max-width:480px) { .fbtn span.t { display:none; } .fbtn { padding:0 10px; } .bar .brand h1 { font-size:.98rem; } }
+  @media (max-width:560px) { .bar .brand .bname { display:none; } }
+  @media (max-width:480px) { .fbtn span.t { display:none; } .fbtn { padding:0 10px; } .bar .brand .bname { font-size:.98rem; } }
   details.shopsbox { margin:18px 0 0; }
   details.shopsbox > summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:650; color:var(--muted); }
   details.shopsbox > summary::-webkit-details-marker { display:none; }
@@ -349,15 +469,32 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 <div class="topbar">
   <div class="wrap bar">
     <button type="button" class="iconbtn burger" id="burger" aria-label="Games menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    <div class="brand">${LOGO_SVG}<h1>Collectible<span>Market</span></h1></div>
+    <div class="brand">${LOGO_SVG}<b class="bname">Collectible<span>Market</span></b></div>
     <div class="search topsearch">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input type="search" id="q" placeholder="Search…" aria-label="Search products">
     </div>
     <nav class="gamenav" id="games" aria-label="Games"></nav>
-    <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
     ${accountLink}
   </div>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Games menu">
+  <div class="dtop"><button type="button" class="iconbtn" id="dclose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><b>Collectible<span style="color:var(--accent)">Market</span></b></div>
+  <h3>Games</h3>
+  <div class="glist" id="gdrawer"></div>
+</aside>
+<main class="wrap" id="list-view">
+  <h1 class="sr">${esc(h1Text)}</h1>
+  <section class="banners" id="banners" aria-label="Games" hidden>
+    <button type="button" class="cnav prev" id="bprev" aria-label="Previous">‹</button>
+    <div class="track" id="btrack"></div>
+    <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
+    <div class="dots" id="bdots"></div>
+  </section>
+
+  <div class="filterbar" id="filterbar">
+  <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
   <div class="fpanel" id="fpanel" hidden><div class="wrap">
   <form class="controls" id="filters" autocomplete="off">
     <div class="row">
@@ -380,25 +517,14 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     </div>
   </form>
   </div></div>
-</div>
-<div class="scrim" id="scrim" hidden></div>
-<aside class="drawer" id="drawer" aria-label="Games menu">
-  <div class="dtop"><button type="button" class="iconbtn" id="dclose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><b>Collectible<span style="color:var(--accent)">Market</span></b></div>
-  <h3>Games</h3>
-  <div class="glist" id="gdrawer"></div>
-</aside>
-<main class="wrap" id="list-view">
-  <section class="banners" id="banners" aria-label="Games" hidden>
-    <button type="button" class="cnav prev" id="bprev" aria-label="Previous">‹</button>
-    <div class="track" id="btrack"></div>
-    <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
-    <div class="dots" id="bdots"></div>
-  </section>
+  </div>
 
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
   <div id="results"></div>
 
+  ${crawlList}
+  ${gameLinks}
   <footer class="sub">Search-only tracker: prices and stock come from each shop's first results page. Buy on the shop's own site.</footer>
 </main>
 
@@ -456,7 +582,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   function priceText(p) { return p.price === null ? '—' : p.price.toFixed(2) + ' ' + p.currency; }
 
   // the menu: one tab per game ('' = all games)
-  var game = '';
+  var game = ${JSON.stringify(initialGame)};
   var games = data.games || [];
   function inGame(x) { return !game || x.game === game; }
   var THEMES = {
@@ -983,6 +1109,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   $('q').addEventListener('input', render);
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
+    function setBarH() { var t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--tbh', t.offsetHeight + 'px'); }
+  setBarH(); window.addEventListener('resize', setBarH);
   renderTabs();
   renderBanners();
   buildShops();

@@ -15,6 +15,7 @@ export default function App() {
   /** The sign-in / register screen is only shown on request (or from an email link). */
   const [auth, setAuth] = useState<'login' | 'register' | null>(() => {
     const q = new URLSearchParams(window.location.search);
+    if (q.has('register')) return 'register';
     return q.has('activate') || q.has('reset') || q.has('login') ? 'login' : null;
   });
 

@@ -132,6 +132,7 @@ describe('report menu of games', () => {
   it('uses signInUrl for the sign-in link when it is a site path or an http(s) address', () => {
     const base = summary;
     expect(buildReportHtml(base, { signInUrl: '/app?login' })).toContain('href="/app?login"');
+    expect(buildReportHtml(base, { signInUrl: '/app?login' })).toContain('href="/app?register"');
     expect(buildReportHtml(base, { appUrl: 'https://x.bg', signInUrl: 'javascript:alert(1)' })).toContain('href="https://x.bg/"');
     expect(buildReportHtml(base, { signInUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
   });
@@ -140,5 +141,16 @@ describe('report menu of games', () => {
     const html = buildReportHtml(summary);
     expect(html).toContain('id="btrack"');
     expect(html).toContain("el('button', 'slide')");
+  });
+
+  it('is noindex by default and indexable with seo options (canonical, description, structured data, h1)', () => {
+    expect(buildReportHtml(summary)).toContain('noindex');
+    const html = buildReportHtml(summary, { seo: { baseUrl: 'https://x.bg/', game: { slug: 'pokemon', name: 'Pokémon' } } });
+    expect(html).not.toContain('noindex');
+    expect(html).toContain('<link rel="canonical" href="https://x.bg/games/pokemon">');
+    expect(html).toContain('name="description"');
+    expect(html).toContain('application/ld+json');
+    expect(html).toContain('<h1 class="sr">');
+    expect(html).toContain("var game = \"pokemon\";");
   });
 });
