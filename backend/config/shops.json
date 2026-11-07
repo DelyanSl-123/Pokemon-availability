@@ -65,5 +65,29 @@
     "name": "kamatogames.com",
     "searchUrl": "https://kamatogames.com/en/collections/one-piece",
     "game": "onepiece"
+  },
+  {
+    "url": "https://hobbygamesbg.com",
+    "name": "hobbygamesbg.com",
+    "searchUrl": "https://hobbygamesbg.com/category/44/pok-mon-tcg.html",
+    "game": "pokemon"
+  },
+  {
+    "url": "https://hobbygamesbg.com",
+    "name": "hobbygamesbg.com",
+    "searchUrl": "https://hobbygamesbg.com/category/269/one-piece-card-game.html",
+    "game": "onepiece"
+  },
+  {
+    "url": "https://hobbygamesbg.com",
+    "name": "hobbygamesbg.com",
+    "searchUrl": "https://hobbygamesbg.com/category/18/yu-gi-oh-tcg.html",
+    "game": "yugioh"
+  },
+  {
+    "url": "https://hobbygamesbg.com",
+    "name": "hobbygamesbg.com",
+    "searchUrl": "https://hobbygamesbg.com/category/586/magic-the-gathering.html",
+    "game": "mtg"
   }
 ]
