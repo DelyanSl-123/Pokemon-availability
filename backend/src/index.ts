@@ -48,6 +48,11 @@ async function main() {
   const scheduler = createScheduler(() => service.run('schedule'), timezone);
 
   const frontendDist = path.resolve(__dirname, '..', '..', 'frontend', 'dist');
+  // The public site may be indexed by search engines only on its https address and once the development lock is off.
+  const publicSiteUrl =
+    !process.env.SITE_PASSWORD && process.env.SEO_INDEX !== 'false' && /^https:\/\//i.test(process.env.APP_URL ?? '')
+      ? (process.env.APP_URL as string).replace(/\/+$/, '')
+      : undefined;
   const app = await buildServer({
     db,
     service,
@@ -56,7 +61,13 @@ async function main() {
     staticDir: fs.existsSync(frontendDist) ? frontendDist : undefined,
     secureCookies: process.env.COOKIE_SECURE === 'true',
     trustProxy: process.env.TRUST_PROXY === 'true',
-    security: { sitePassword: process.env.SITE_PASSWORD || undefined, siteUser: process.env.SITE_USER || undefined },
+    security: {
+      sitePassword: process.env.SITE_PASSWORD || undefined,
+      siteUser: process.env.SITE_USER || undefined,
+      indexable: publicSiteUrl !== undefined,
+      siteUrl: publicSiteUrl,
+    },
+    siteUrl: publicSiteUrl,
     mailer: createMailer(mailConfigFromEnv()),
     captcha: captchaFromEnv(),
     appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,

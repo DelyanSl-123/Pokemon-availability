@@ -75,6 +75,8 @@ export interface ServerDeps {
   captcha?: Captcha;
   /** Public address of the web app, used in the activation link (no trailing slash). */
   appUrl: string;
+  /** Set when the site is public and may be indexed by search engines (its https address). */
+  siteUrl?: string;
   /** Shops that are only linked, never fetched; listed on the home page. */
   manualShops?: () => ManualShop[];
 }
@@ -480,9 +482,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   /* ---- built frontend (optional) ---- */
   /* ---- home page: the report with the latest results (public); the app itself lives at /app ---- */
-  app.get('/', async (req, reply) => {
-    // Links from e-mails (/?activate=..., ?reset=..., ?confirm-email=...) open the app.
-    if (deps.staticDir && req.url.includes('?')) return reply.sendFile('index.html');
+  const renderHome = (game?: { slug: string; name: string }) => {
     const last = listRuns(deps.db, 1)[0];
     const now = new Date().toISOString();
     const summary: RunSummary = last ?? {
@@ -503,10 +503,39 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     } catch {
       /* the list is optional */
     }
+    return buildReportHtml(summary, {
+      signInUrl: '/app?login',
+      manualShops,
+      ...(deps.siteUrl ? { seo: { baseUrl: deps.siteUrl, game } } : {}),
+    });
+  };
+
+  app.get('/', async (req, reply) => {
+    // Links from e-mails (/?activate=..., ?reset=..., ?confirm-email=...) open the app.
+    if (deps.staticDir && req.url.includes('?')) return reply.sendFile('index.html');
+    return reply.type('text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(renderHome());
+  });
+
+  // One page per game (own address, title and description for search engines).
+  app.get<{ Params: { slug: string } }>('/games/:slug', async (req, reply) => {
+    const game = listGames(deps.db).find((g) => g.enabled && g.slug === req.params.slug);
+    if (!game) return reply.status(404).type('text/plain').send('Not found');
     return reply
       .type('text/html; charset=utf-8')
       .header('Cache-Control', 'no-cache')
-      .send(buildReportHtml(summary, { signInUrl: '/app?login', manualShops }));
+      .send(renderHome({ slug: game.slug, name: game.name }));
+  });
+
+  app.get('/sitemap.xml', async (_req, reply) => {
+    if (!deps.siteUrl) return reply.status(404).type('text/plain').send('Not found');
+    const base = deps.siteUrl.replace(/\/+$/, '');
+    const urls = [`${base}/`, ...listGames(deps.db).filter((g) => g.enabled).map((g) => `${base}/games/${g.slug}`)];
+    const day = new Date().toISOString().slice(0, 10);
+    const xml =
+      '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      urls.map((u) => `  <url><loc>${u}</loc><lastmod>${day}</lastmod><changefreq>daily</changefreq></url>`).join('\n') +
+      '\n</urlset>\n';
+    return reply.type('application/xml; charset=utf-8').send(xml);
   });
 
   if (deps.staticDir) {

@@ -142,4 +142,15 @@ describe('report menu of games', () => {
     expect(html).toContain('id="btrack"');
     expect(html).toContain("el('button', 'slide')");
   });
+
+  it('is noindex by default and indexable with seo options (canonical, description, structured data, h1)', () => {
+    expect(buildReportHtml(summary)).toContain('noindex');
+    const html = buildReportHtml(summary, { seo: { baseUrl: 'https://x.bg/', game: { slug: 'pokemon', name: 'Pokémon' } } });
+    expect(html).not.toContain('noindex');
+    expect(html).toContain('<link rel="canonical" href="https://x.bg/games/pokemon">');
+    expect(html).toContain('name="description"');
+    expect(html).toContain('application/ld+json');
+    expect(html).toContain('<h1 class="sr">');
+    expect(html).toContain("var game = \"pokemon\";");
+  });
 });
