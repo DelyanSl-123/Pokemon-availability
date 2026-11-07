@@ -69,6 +69,10 @@ export interface SecurityOptions {
    * password with the browser's own sign-in box before anything is shown.
    */
   sitePassword?: string;
+  /** Public site: search engines may read the home page, the game pages and the sitemap (everything else stays closed). */
+  indexable?: boolean;
+  /** Public address of the site (for the Sitemap line in robots.txt). */
+  siteUrl?: string;
   /** User name for the site lock (default "admin"). */
   siteUser?: string;
   now?: () => number;
@@ -91,7 +95,18 @@ function siteLockOk(header: string | undefined, user: string, password: string):
 
 const ROBOTS_TXT = 'User-agent: *\nDisallow: /\n';
 
+/** Search engine crawlers: let them read the public pages (and only those). */
+const SEARCH_CRAWLER = /googlebot|bingbot|duckduckbot|yandexbot|applebot/i;
+const isPublicPage = (path: string) => path === '/' || path === '/sitemap.xml' || path.startsWith('/games/');
+
+function indexableRobots(siteUrl?: string): string {
+  const lines = ['User-agent: *', 'Allow: /$', 'Allow: /games/', 'Allow: /sitemap.xml', 'Disallow: /app', 'Disallow: /api/'];
+  if (siteUrl) lines.push('', `Sitemap: ${siteUrl.replace(/\/+$/, '')}/sitemap.xml`);
+  return lines.join('\n') + '\n';
+}
+
 export function registerBotProtection(app: FastifyInstance, opts: SecurityOptions = {}): void {
+  const robotsTxt = opts.indexable ? indexableRobots(opts.siteUrl) : ROBOTS_TXT;
   const general = createRateLimiter(opts.requestsPerMinute ?? 120, 60_000, opts.now);
   const logins = createRateLimiter(opts.loginAttemptsPer10Min ?? 15, 10 * 60_000, opts.now);
   const lockFails = createRateLimiter(10, 10 * 60_000, opts.now);
@@ -99,12 +114,13 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
 
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0];
-    if (path === '/robots.txt') return reply.type('text/plain').send(ROBOTS_TXT);
+    if (path === '/robots.txt') return reply.type('text/plain').send(robotsTxt);
 
     // Hosting platforms ping this with their own agent (e.g. "Render/1.0"); it only returns {ok:true}.
     if (path === '/api/health') return;
 
-    if (looksLikeBot(req.headers['user-agent'])) {
+    const crawlerOk = opts.indexable && isPublicPage(path) && SEARCH_CRAWLER.test(req.headers['user-agent'] ?? '');
+    if (!crawlerOk && looksLikeBot(req.headers['user-agent'])) {
       return reply.status(403).send({ error: 'Automated access is not allowed' });
     }
     if (!general.allow(req.ip)) {
@@ -124,8 +140,8 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
     }
   });
 
-  app.addHook('onSend', async (_req, reply, payload) => {
-    reply.header('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  app.addHook('onSend', async (req, reply, payload) => {
+    if (!(opts.indexable && isPublicPage(req.url.split('?')[0]) && !req.url.startsWith('/?'))) reply.header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Referrer-Policy', 'no-referrer');

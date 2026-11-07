@@ -101,4 +101,18 @@ describe('bot protection on the API', () => {
     const res = await app.inject({ method: 'GET', url: '/robots.txt', headers: { 'user-agent': BROWSER } });
     expect(res.body).toContain('Disallow: /');
   });
+
+  it('opens the public pages to search engines only when the site is indexable', async () => {
+    const app = await setup({ indexable: true, siteUrl: 'https://x.bg' });
+    const robots = await app.inject({ method: 'GET', url: '/robots.txt', headers: { 'user-agent': BROWSER } });
+    expect(robots.body).toContain('Allow: /games/');
+    expect(robots.body).toContain('Disallow: /api/');
+    expect(robots.body).toContain('Sitemap: https://x.bg/sitemap.xml');
+    const google = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+    expect((await app.inject({ method: 'GET', url: '/', headers: { 'user-agent': google } })).statusCode).not.toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/config', headers: { 'user-agent': google } })).statusCode).toBe(403);
+    const api = await app.inject({ method: 'GET', url: '/api/config', headers: { 'user-agent': BROWSER } });
+    expect(api.headers['x-robots-tag']).toContain('noindex');
+    await app.close();
+  });
 });

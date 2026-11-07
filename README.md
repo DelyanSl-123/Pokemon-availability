@@ -155,3 +155,9 @@ Signed in (any user): `GET /api/shops`, `GET /api/products?shopId=&inStock=true`
 Admin only: `POST /api/shops`, `PATCH/DELETE /api/shops/:id`, `POST /api/run`, `GET/PUT /api/settings`.
 
 Without a session the API answers `401`; a regular user calling an admin endpoint gets `403`.
+
+## Search engines (SEO)
+
+The home page (`/`), one page per game (`/games/<slug>`) and `/sitemap.xml` are indexable. They carry a Bulgarian title and description, a canonical address, Open Graph tags and schema.org data (products with price and stock). `/app` and `/api` stay closed (`robots.txt`, `noindex`).
+
+Indexing turns on only when `APP_URL` is an `https://` address and `SITE_PASSWORD` is not set. `SEO_INDEX=false` keeps it off. After launch, add the site to Google Search Console and Bing Webmaster Tools, verify the domain and submit `https://collectiblemarket.bg/sitemap.xml`.
