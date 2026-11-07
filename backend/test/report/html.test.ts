@@ -132,6 +132,7 @@ describe('report menu of games', () => {
   it('uses signInUrl for the sign-in link when it is a site path or an http(s) address', () => {
     const base = summary;
     expect(buildReportHtml(base, { signInUrl: '/app?login' })).toContain('href="/app?login"');
+    expect(buildReportHtml(base, { signInUrl: '/app?login' })).toContain('href="/app?register"');
     expect(buildReportHtml(base, { appUrl: 'https://x.bg', signInUrl: 'javascript:alert(1)' })).toContain('href="https://x.bg/"');
     expect(buildReportHtml(base, { signInUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
   });

@@ -42,10 +42,13 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
   const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
   const signIn = opts.signInUrl && /^(https?:\/\/|\/)/i.test(opts.signInUrl) ? opts.signInUrl : appUrl;
+  // The register link opens the same screen in registration mode (?login becomes ?register).
+  const registerUrl = /[?&]login\b/.test(signIn) ? signIn.replace(/([?&])login\b/, '$1register') : signIn + (signIn.includes('?') ? '&' : '?') + 'register';
   const accountLink = signIn
     ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
-      '<span>Sign in</span></a>'
+      '<span>Sign in</span></a>' +
+      `<a class="account reg" href="${esc(registerUrl)}" title="Create an account" aria-label="Register"><span>Register</span></a>`
     : '';
   // The menu: the games that were checked. Older summaries (before games existed) are all Pokémon.
   const games = summary.games && summary.games.length > 0 ? summary.games : [{ slug: 'pokemon', name: 'Pokémon' }];
@@ -122,9 +125,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   h1 span { color:var(--accent); }
   .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
   .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
+  .account.reg { margin-left:6px; padding:7px 16px; background:var(--accent); border-color:var(--accent); color:#fff; }
+  .account.reg:hover { filter:brightness(1.08); background:var(--accent); border-color:var(--accent); }
   .account:hover { background:var(--hero-hover); border-color:var(--muted); }
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
-  @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
+  @media (max-width:1400px) { .gamenav button { padding:20px 9px; font-size:.88rem; } .account:not(.reg) span { display:none; } .account:not(.reg) { padding:8px; } }
+  @media (max-width:480px) { .account:not(.reg) { display:none; } .account.reg { padding:7px 12px; margin-left:0; } }
   .meta { color:var(--hero-muted); font-size:.85rem; margin:18px 0 0; }
   .meta b { color:var(--hero-text); font-weight:600; }
   .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; border-top:1px solid var(--hero-line); }
