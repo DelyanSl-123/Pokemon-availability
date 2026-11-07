@@ -123,6 +123,28 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
 
+  /* game banners */
+  .banners { position:relative; margin:18px 0 6px; border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
+  .track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; scroll-behavior:smooth; }
+  .track::-webkit-scrollbar { display:none; }
+  .slide { flex:0 0 100%; scroll-snap-align:start; position:relative; overflow:hidden; text-align:center; border:0; padding:56px 64px; min-height:300px; color:#fff; cursor:pointer; font:inherit; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg,var(--a),var(--b)); }
+  .slide:focus-visible { outline:3px solid #fff; outline-offset:-6px; }
+  .slide > * { position:relative; z-index:1; }
+  .slide > .art { position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  .s-name { font-size:2.6rem; font-weight:800; letter-spacing:-.02em; line-height:1.05; text-transform:uppercase; text-shadow:0 3px 14px rgba(0,0,0,.4); }
+  .s-meta { font-size:1.05rem; opacity:.95; text-shadow:0 1px 6px rgba(0,0,0,.4); }
+  .s-go { margin-top:10px; padding:10px 30px; border:2px solid #fff; border-radius:6px; font-size:.95rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:rgba(0,0,0,.18); transition:background .15s; }
+  .slide:hover .s-go { background:#fff; color:#111; text-shadow:none; }
+  .cnav { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:42px; height:42px; border-radius:50%; border:0; background:rgba(0,0,0,.35); color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; }
+  .cnav:hover { background:rgba(0,0,0,.6); }
+  .cnav.prev { left:12px; } .cnav.next { right:12px; }
+  .dots { position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:8px; z-index:3; }
+  .dots button { width:9px; height:9px; padding:0; border-radius:50%; border:0; background:rgba(255,255,255,.5); cursor:pointer; }
+  .dots button.on { background:#fff; }
+  @media (hover:none) { .cnav { display:none; } }
+  @media (max-width:860px) { .slide { padding:40px 20px 44px; min-height:220px; } .s-name { font-size:1.8rem; } }
+  #results { scroll-margin-top:76px; }
+
   /* shops */
   .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
   /* top bar: stays on screen while scrolling */
@@ -366,6 +388,13 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   <div class="glist" id="gdrawer"></div>
 </aside>
 <main class="wrap" id="list-view">
+  <section class="banners" id="banners" aria-label="Games" hidden>
+    <button type="button" class="cnav prev" id="bprev" aria-label="Previous">‹</button>
+    <div class="track" id="btrack"></div>
+    <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
+    <div class="dots" id="bdots"></div>
+  </section>
+
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
   <div id="results"></div>
@@ -430,7 +459,120 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   var game = '';
   var games = data.games || [];
   function inGame(x) { return !game || x.game === game; }
-  function setGame(slug) { game = slug; renderTabs(); buildShops(); render(); closeDrawer(); }
+  var THEMES = {
+    pokemon: ['#e3350d', '#f59e0b'],
+    onepiece: ['#0b3d91', '#e11d48'],
+    yugioh: ['#4c1d95', '#b45309'],
+    mtg: ['#14532d', '#9a3412']
+  };
+  function theme(slug) {
+    if (THEMES[slug]) return THEMES[slug];
+    var h = 0;
+    for (var i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
+    return ['hsl(' + h + ',60%,32%)', 'hsl(' + ((h + 50) % 360) + ',65%,42%)'];
+  }
+  var EMB = {
+    flame: '<path d="M30 4C38 18 52 26 50 42C48 54 38 58 30 58C22 58 12 54 10 42C8 30 20 24 22 12C26 18 28 12 30 4Z"/>',
+    drop: '<path d="M30 4C40 20 52 32 50 44C48 54 40 58 30 58C20 58 12 54 10 44C8 32 20 20 30 4Z"/>',
+    leaf: '<path d="M8 52C8 24 26 8 54 6C54 34 40 54 8 52Z"/>',
+    bolt: '<path d="M34 2L12 34H28L22 58L48 24H32L34 2Z"/>',
+    sail: '<path d="M28 4L28 48L6 48C8 28 16 12 28 4ZM33 10C43 20 49 34 51 48L33 48Z"/><rect x="4" y="52" width="52" height="5" rx="2.5"/>',
+    star: '<path d="M30 2L36 24L58 30L36 36L30 58L24 36L2 30L24 24Z"/>',
+    wave: '<path d="M2 36C10 24 18 24 26 36C34 48 42 48 50 36L58 40L58 54L2 54Z"/>',
+    pyramid: '<path d="M30 4L56 54H4Z"/><circle cx="30" cy="36" r="7" fill="#0006"/>',
+    ring: '<circle cx="30" cy="30" r="24" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="30" cy="30" r="9"/>',
+    crystal: '<path d="M30 2L50 22L30 58L10 22Z"/>',
+    sun: '<circle cx="30" cy="30" r="13"/><path d="M30 0V10M30 50V60M0 30H10M50 30H60M9 9L16 16M44 44L51 51M51 9L44 16M16 44L9 51" stroke="currentColor" stroke-width="4" fill="none"/>',
+    mtn: '<path d="M2 54L22 14L34 34L42 22L58 54Z"/>'
+  };
+  var ARTSETS = {
+    pokemon: ['flame', 'drop', 'leaf', 'bolt'],
+    onepiece: ['sail', 'star', 'wave', 'sun'],
+    yugioh: ['pyramid', 'ring', 'crystal', 'star'],
+    mtg: ['mtn', 'flame', 'sun', 'crystal']
+  };
+  function artCard(x, y, r, k) {
+    return '<g transform="translate(' + x + ' ' + y + ') rotate(' + r + ')"><rect x="-58" y="-82" width="116" height="164" rx="12" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.6)" stroke-width="2.5"/><rect x="-48" y="-72" width="96" height="144" rx="8" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/><g transform="translate(-30 -30)" fill="#fff" color="#fff" opacity=".92">' + (EMB[k] || EMB.star) + '</g></g>';
+  }
+  function artFor(slug) {
+    var set = ARTSETS[slug] || ['star', 'crystal', 'ring', 'sun'];
+    var sp = '';
+    for (var i = 0; i < 26; i++) {
+      var sx = (i * 197 + 61) % 1200, sy = (i * 83 + 17) % 300, sr = 1.5 + (i % 4);
+      sp += '<circle cx="' + sx + '" cy="' + sy + '" r="' + sr + '" fill="#fff" opacity="' + (0.2 + (i % 5) * 0.1) + '"/>';
+    }
+    return '<svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
+      '<circle cx="180" cy="60" r="190" fill="#fff" opacity=".08"/><circle cx="1040" cy="270" r="230" fill="#000" opacity=".12"/>' +
+      '<circle cx="600" cy="150" r="260" fill="#fff" opacity=".06"/>' + sp +
+      '<g opacity=".95">' + artCard(150, 165, -16, set[0]) + artCard(275, 150, -4, set[1]) + artCard(925, 150, 5, set[2]) + artCard(1050, 165, 17, set[3]) + '</g>' +
+      '<defs><radialGradient id="gl' + slug + '"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs><ellipse cx="600" cy="150" rx="380" ry="150" fill="url(#gl' + slug + ')"/></svg>';
+  }
+  function renderBanners() {
+    var box = $('banners');
+    var track = $('btrack');
+    track.textContent = '';
+    if (games.length < 2) { box.hidden = true; return; }
+    box.hidden = false;
+    games.forEach(function (g) {
+      var list = products.filter(function (p) { return p.game === g.slug; });
+      var inStock = list.filter(function (p) { return p.inStock === true; }).length;
+      var b = el('button', 'slide');
+      b.type = 'button';
+      b.setAttribute('data-game', g.slug);
+      var t = theme(g.slug);
+      b.style.setProperty('--a', t[0]);
+      b.style.setProperty('--b', t[1]);
+      var art = el('span', 'art');
+      art.innerHTML = artFor(g.slug);
+      b.appendChild(art);
+      b.appendChild(el('span', 's-name', g.name));
+      b.appendChild(el('span', 's-meta', list.length + ' products \u00b7 ' + inStock + ' in stock'));
+      b.appendChild(el('span', 's-go', 'Shop'));
+      b.addEventListener('click', function () {
+        setGame(g.slug);
+        $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      track.appendChild(b);
+    });
+    var dots = $('bdots');
+    dots.textContent = '';
+    games.forEach(function (g, i) {
+      var d = el('button', '');
+      d.type = 'button';
+      d.setAttribute('aria-label', g.name);
+      d.addEventListener('click', function () { track.scrollTo({ left: i * track.clientWidth }); });
+      dots.appendChild(d);
+    });
+    function updateDots() {
+      var i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+      var ds = dots.children;
+      for (var k = 0; k < ds.length; k++) ds[k].classList.toggle('on', k === i);
+    }
+    track.addEventListener('scroll', updateDots);
+    updateDots();
+    function step(dir) {
+      var w = track.clientWidth;
+      var atEnd = track.scrollLeft + w >= track.scrollWidth - 4;
+      if (dir > 0 && atEnd) track.scrollTo({ left: 0 });
+      else if (dir < 0 && track.scrollLeft <= 2) track.scrollTo({ left: track.scrollWidth });
+      else track.scrollBy({ left: dir * w });
+    }
+    $('bprev').onclick = function () { step(-1); };
+    $('bnext').onclick = function () { step(1); };
+    var paused = false;
+    ['mouseenter', 'focusin', 'touchstart'].forEach(function (ev) { box.addEventListener(ev, function () { paused = true; }); });
+    ['mouseleave', 'focusout'].forEach(function (ev) { box.addEventListener(ev, function () { paused = false; }); });
+    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setInterval(function () { if (!paused && !document.hidden) step(1); }, 5000);
+    }
+  }
+  function markBanners() {
+    var slides = document.querySelectorAll('#btrack .slide');
+    for (var i = 0; i < slides.length; i++) {
+      slides[i].classList.toggle('on', slides[i].getAttribute('data-game') === game);
+    }
+  }
+  function setGame(slug) { game = slug; renderTabs(); markBanners(); buildShops(); render(); closeDrawer(); }
   function renderTabs() {
     ['games', 'gdrawer'].forEach(function (id) {
       var box = $(id);
@@ -842,6 +984,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
   renderTabs();
+  renderBanners();
   buildShops();
   render();
   route();

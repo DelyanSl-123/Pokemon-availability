@@ -135,4 +135,10 @@ describe('report menu of games', () => {
     expect(buildReportHtml(base, { appUrl: 'https://x.bg', signInUrl: 'javascript:alert(1)' })).toContain('href="https://x.bg/"');
     expect(buildReportHtml(base, { signInUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
   });
+
+  it('has a banner carousel with one banner per game', () => {
+    const html = buildReportHtml(summary);
+    expect(html).toContain('id="btrack"');
+    expect(html).toContain("el('button', 'slide')");
+  });
 });
