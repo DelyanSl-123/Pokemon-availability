@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 
 /**
@@ -63,7 +64,29 @@ export interface SecurityOptions {
   requestsPerMinute?: number;
   /** Sign-in / register attempts per client address per 10 minutes (default 15). */
   loginAttemptsPer10Min?: number;
+  /**
+   * Development lock: when set, the whole site (pages and API, except the health check) asks for this
+   * password with the browser's own sign-in box before anything is shown.
+   */
+  sitePassword?: string;
+  /** User name for the site lock (default "admin"). */
+  siteUser?: string;
   now?: () => number;
+}
+
+function sha(value: string): Buffer {
+  return createHash('sha256').update(value).digest();
+}
+
+/** True when the Authorization header carries the right user name and password (constant time). */
+function siteLockOk(header: string | undefined, user: string, password: string): boolean {
+  if (!header || !header.startsWith('Basic ')) return false;
+  const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+  const i = decoded.indexOf(':');
+  if (i < 0) return false;
+  const userOk = timingSafeEqual(sha(decoded.slice(0, i)), sha(user));
+  const passOk = timingSafeEqual(sha(decoded.slice(i + 1)), sha(password));
+  return userOk && passOk;
 }
 
 const ROBOTS_TXT = 'User-agent: *\nDisallow: /\n';
@@ -71,6 +94,8 @@ const ROBOTS_TXT = 'User-agent: *\nDisallow: /\n';
 export function registerBotProtection(app: FastifyInstance, opts: SecurityOptions = {}): void {
   const general = createRateLimiter(opts.requestsPerMinute ?? 120, 60_000, opts.now);
   const logins = createRateLimiter(opts.loginAttemptsPer10Min ?? 15, 10 * 60_000, opts.now);
+  const lockFails = createRateLimiter(10, 10 * 60_000, opts.now);
+  const lockUser = opts.siteUser || 'admin';
 
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0];
@@ -84,6 +109,15 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
     }
     if (!general.allow(req.ip)) {
       return reply.header('Retry-After', '60').status(429).send({ error: 'Too many requests, slow down' });
+    }
+    if (opts.sitePassword) {
+      if (!siteLockOk(req.headers.authorization, lockUser, opts.sitePassword)) {
+        // Wrong guesses are counted, so the password cannot be brute-forced.
+        if (req.headers.authorization && !lockFails.allow(req.ip)) {
+          return reply.header('Retry-After', '600').status(429).send('Too many wrong passwords, try again later');
+        }
+        return reply.header('WWW-Authenticate', 'Basic realm="Collectible Market (in development)", charset="UTF-8"').status(401).send('Password required');
+      }
     }
     if (req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/resend', '/api/auth/activate', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email'].includes(path) && !logins.allow(req.ip)) {
       return reply.header('Retry-After', '600').status(429).send({ error: 'Too many sign-in attempts, try again later' });

@@ -71,6 +71,31 @@ describe('bot protection on the API', () => {
     expect(codes).toEqual([200, 200, 200, 429, 429]);
   });
 
+  it('asks for the site password when the development lock is on', async () => {
+    const app = await setup({ sitePassword: 'secret-pass', siteUser: 'dev' });
+    const h = { 'user-agent': BROWSER };
+    const basic = (u: string, p: string) => ({ ...h, authorization: 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64') });
+    const none = await app.inject({ method: 'GET', url: '/', headers: h });
+    expect(none.statusCode).toBe(401);
+    expect(none.headers['www-authenticate']).toContain('Basic');
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('dev', 'wrong') })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('other', 'secret-pass') })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('dev', 'secret-pass') })).statusCode).toBe(200);
+    // the hosting platform's health check must keep working
+    expect((await app.inject({ method: 'GET', url: '/api/health', headers: { 'user-agent': 'Render/1.0' } })).statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('stops guessing the site password after ten wrong tries', async () => {
+    const app = await setup({ sitePassword: 'secret-pass' });
+    const bad = { 'user-agent': BROWSER, authorization: 'Basic ' + Buffer.from('admin:nope').toString('base64') };
+    const codes = [];
+    for (let i = 0; i < 12; i++) codes.push((await app.inject({ method: 'GET', url: '/', headers: bad })).statusCode);
+    expect(codes.slice(0, 10).every((c) => c === 401)).toBe(true);
+    expect(codes[11]).toBe(429);
+    await app.close();
+  });
+
   it('serves a robots.txt that disallows everything', async () => {
     const app = await setup();
     const res = await app.inject({ method: 'GET', url: '/robots.txt', headers: { 'user-agent': BROWSER } });

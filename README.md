@@ -45,6 +45,10 @@ The daily GitHub run publishes the same page to **GitHub Pages** at `https://<yo
 
 **Sign-in icon:** the report header shows a person icon (“Sign in”) that opens the web app's sign-in / register screen (see [Accounts](#accounts-admin-and-users)). It appears only when the report knows the app's address: `APP_URL` in `backend/.env` (locally `npm run report` falls back to `http://127.0.0.1:3001`), or, for the GitHub Pages report, a repository **variable** named `APP_URL` under **Settings → Secrets and variables → Actions → Variables**. Use an address other people can reach, such as where you host the backend.
 
+## Development lock (password for the whole site)
+
+Set `SITE_PASSWORD` (and optionally `SITE_USER`, default `admin`) and the site, pages and API alike, asks for it with the browser's own sign-in box before showing anything. Wrong guesses are limited. Remove the variable to open the site again. `/api/health` stays open for the hosting platform.
+
 ## Public home page
 
 The home page of the web app (products, shops and games) is public: anyone can look without an account. Sign in and Register are buttons in the header. Everything that changes data (shops, games, settings, running a check) stays admin-only, and the account pages need a sign-in.
