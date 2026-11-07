@@ -56,6 +56,7 @@ async function main() {
     staticDir: fs.existsSync(frontendDist) ? frontendDist : undefined,
     secureCookies: process.env.COOKIE_SECURE === 'true',
     trustProxy: process.env.TRUST_PROXY === 'true',
+    security: { sitePassword: process.env.SITE_PASSWORD || undefined, siteUser: process.env.SITE_USER || undefined },
     mailer: createMailer(mailConfigFromEnv()),
     captcha: captchaFromEnv(),
     appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,
