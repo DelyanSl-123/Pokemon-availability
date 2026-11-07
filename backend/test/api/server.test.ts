@@ -91,6 +91,16 @@ describe('API', () => {
 });
 
 describe('API accounts', () => {
+  it('serves the report as the public home page, with the sign-in link pointing at the app', async () => {
+    const { app } = await setup();
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.body).toContain('CollectibleMarket');
+    expect(res.body).toContain('href="/app?login"');
+    expect(res.body).toContain('Pokémon');
+  });
+
   it('lets anyone read products, shops, games and runs, and requires signing in for everything else', async () => {
     const { app } = await setup();
     expect((await app.inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200);

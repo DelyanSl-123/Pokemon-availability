@@ -15,7 +15,7 @@ export default function App() {
   /** The sign-in / register screen is only shown on request (or from an email link). */
   const [auth, setAuth] = useState<'login' | 'register' | null>(() => {
     const q = new URLSearchParams(window.location.search);
-    return q.has('activate') || q.has('reset') ? 'login' : null;
+    return q.has('activate') || q.has('reset') || q.has('login') ? 'login' : null;
   });
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function App() {
             setUser(u);
             setAuth(null);
           }}
-          onClose={new URLSearchParams(window.location.search).has('activate') || new URLSearchParams(window.location.search).has('reset') ? undefined : () => setAuth(null)}
+          onClose={() => window.location.assign('/')}
         />
       ) : (
         <Tracker
@@ -185,6 +185,9 @@ function Tracker({
       <header className="top">
         <div>
           <h1>Trading Card Tracker</h1>
+          <a className="link" href="/">
+            ← Public page
+          </a>
           <p className="sub">Checks your shops once a day for Pokémon, One Piece, Yu-Gi-Oh!, Magic and other card games.</p>
         </div>
         <div className="side">
