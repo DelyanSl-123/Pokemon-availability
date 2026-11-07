@@ -128,4 +128,11 @@ describe('report menu of games', () => {
     expect(old).toContain('"games":[{"slug":"pokemon","name":"Pokémon"}]');
     expect(old).toContain('"name":"ozone.bg"'); // no suffix when the name is unique
   });
+
+  it('uses signInUrl for the sign-in link when it is a site path or an http(s) address', () => {
+    const base = summary;
+    expect(buildReportHtml(base, { signInUrl: '/app?login' })).toContain('href="/app?login"');
+    expect(buildReportHtml(base, { appUrl: 'https://x.bg', signInUrl: 'javascript:alert(1)' })).toContain('href="https://x.bg/"');
+    expect(buildReportHtml(base, { signInUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
+  });
 });

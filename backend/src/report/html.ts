@@ -32,6 +32,8 @@ const esc = (s: string) =>
 export interface ReportOptions {
   /** Address of the web app; adds a sign-in / register icon to the header (http(s) only). */
   appUrl?: string;
+  /** Exact address of the sign-in link; overrides appUrl (used when the report is the home page of the app). */
+  signInUrl?: string;
   /** Shops that are never checked automatically; listed with a link to check them by hand. */
   manualShops?: { name: string; url: string; note: string; game?: string }[];
 }
@@ -39,8 +41,9 @@ export interface ReportOptions {
 export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): string {
   // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
   const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
-  const accountLink = appUrl
-    ? `<a class="account" href="${esc(appUrl)}" title="Sign in / Register" aria-label="Sign in or register">` +
+  const signIn = opts.signInUrl && /^(https?:\/\/|\/)/i.test(opts.signInUrl) ? opts.signInUrl : appUrl;
+  const accountLink = signIn
+    ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
       '<span>Sign in</span></a>'
     : '';

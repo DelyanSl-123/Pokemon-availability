@@ -10,7 +10,7 @@ import { createScheduler } from './core/scheduler';
 import { buildServer } from './api/server';
 import { createService } from './core/service';
 import { normalizeShopInput } from './shops/shop-urls';
-import { syncShops } from './shops/sync';
+import { readManualShops, syncShops } from './shops/sync';
 import type { Settings } from './types';
 
 async function main() {
@@ -60,6 +60,7 @@ async function main() {
     mailer: createMailer(mailConfigFromEnv()),
     captcha: captchaFromEnv(),
     appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,
+    manualShops: () => readManualShops(process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json')),
   });
 
   // Registrations whose activation link was never opened are removed after 24 hours.

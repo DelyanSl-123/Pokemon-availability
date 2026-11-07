@@ -52,7 +52,9 @@ import { passwordProblems } from '../auth/password-rules';
 import type { Captcha } from './captcha';
 import { createLockout, registerBotProtection, type SecurityOptions } from './security';
 import { normalizeShopInput } from '../shops/shop-urls';
-import type { Settings } from '../types';
+import { buildReportHtml } from '../report/html';
+import type { ManualShop } from '../shops/sync';
+import type { RunSummary, Settings } from '../types';
 
 export interface ServerDeps {
   db: DB;
@@ -73,6 +75,8 @@ export interface ServerDeps {
   captcha?: Captcha;
   /** Public address of the web app, used in the activation link (no trailing slash). */
   appUrl: string;
+  /** Shops that are only linked, never fetched; listed on the home page. */
+  manualShops?: () => ManualShop[];
 }
 
 declare module 'fastify' {
@@ -475,8 +479,40 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
 
   /* ---- built frontend (optional) ---- */
+  /* ---- home page: the report with the latest results (public); the app itself lives at /app ---- */
+  app.get('/', async (req, reply) => {
+    // Links from e-mails (/?activate=..., ?reset=..., ?confirm-email=...) open the app.
+    if (deps.staticDir && req.url.includes('?')) return reply.sendFile('index.html');
+    const last = listRuns(deps.db, 1)[0];
+    const now = new Date().toISOString();
+    const summary: RunSummary = last ?? {
+      runId: 0,
+      startedAt: now,
+      finishedAt: now,
+      source: 'manual',
+      query: '',
+      games: listGames(deps.db)
+        .filter((g) => g.enabled)
+        .map((g) => ({ slug: g.slug, name: g.name })),
+      shops: [],
+      products: [],
+    };
+    let manualShops: ManualShop[] = [];
+    try {
+      manualShops = deps.manualShops?.() ?? [];
+    } catch {
+      /* the list is optional */
+    }
+    return reply
+      .type('text/html; charset=utf-8')
+      .header('Cache-Control', 'no-cache')
+      .send(buildReportHtml(summary, { signInUrl: '/app?login', manualShops }));
+  });
+
   if (deps.staticDir) {
-    await app.register(fastifyStatic, { root: deps.staticDir });
+    // index:false so that "/" is the report above, not the app's index.html
+    await app.register(fastifyStatic, { root: deps.staticDir, index: false });
+    app.get('/app', async (_req, reply) => reply.sendFile('index.html'));
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api/')) return reply.status(404).send({ error: 'Not found' });
       return reply.sendFile('index.html');
