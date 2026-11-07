@@ -42,10 +42,13 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
   const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
   const signIn = opts.signInUrl && /^(https?:\/\/|\/)/i.test(opts.signInUrl) ? opts.signInUrl : appUrl;
+  // The register link opens the same screen in registration mode (?login becomes ?register).
+  const registerUrl = /[?&]login\b/.test(signIn) ? signIn.replace(/([?&])login\b/, '$1register') : signIn + (signIn.includes('?') ? '&' : '?') + 'register';
   const accountLink = signIn
     ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
-      '<span>Sign in</span></a>'
+      '<span>Sign in</span></a>' +
+      `<a class="account reg" href="${esc(registerUrl)}" title="Create an account" aria-label="Register"><span>Register</span></a>`
     : '';
   // The menu: the games that were checked. Older summaries (before games existed) are all Pokémon.
   const games = summary.games && summary.games.length > 0 ? summary.games : [{ slug: 'pokemon', name: 'Pokémon' }];
@@ -122,9 +125,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   h1 span { color:var(--accent); }
   .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
   .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
+  .account.reg { margin-left:6px; padding:7px 16px; background:var(--accent); border-color:var(--accent); color:#fff; }
+  .account.reg:hover { filter:brightness(1.08); background:var(--accent); border-color:var(--accent); }
   .account:hover { background:var(--hero-hover); border-color:var(--muted); }
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
-  @media (max-width:480px) { .account span { display:none; } .account { padding:8px; } }
+  @media (max-width:1400px) { .gamenav button { padding:20px 9px; font-size:.88rem; } .account:not(.reg) span { display:none; } .account:not(.reg) { padding:8px; } }
+  @media (max-width:480px) { .account:not(.reg) { display:none; } .account.reg { padding:7px 12px; margin-left:0; } }
   .meta { color:var(--hero-muted); font-size:.85rem; margin:18px 0 0; }
   .meta b { color:var(--hero-text); font-weight:600; }
   .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; border-top:1px solid var(--hero-line); }
@@ -191,6 +197,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .burger { display:none; }
   .fpanel { position:absolute; top:100%; right:0; left:0; }
   .fpanel .wrap { display:flex; justify-content:flex-end; }
+  .filterbar { position:sticky; top:var(--tbh,62px); z-index:25; background:var(--bg); padding:12px 0; margin-top:6px; display:flex; align-items:center; gap:12px; }
+  .filterbar .fbtn { margin-left:0; color:var(--text); background:var(--surface); border-color:var(--line); box-shadow:var(--shadow); height:42px; padding:0 20px 0 16px; }
+  .filterbar .fbtn span.t { display:inline; }
+  .filterbar .fpanel { top:calc(100% - 4px); }
+  .filterbar .fpanel .wrap { padding:0; justify-content:flex-start; max-width:none; }
+
   .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
   .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
   .fpanel .row select { flex:1; min-width:0; }
@@ -370,31 +382,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       <input type="search" id="q" placeholder="Search…" aria-label="Search products">
     </div>
     <nav class="gamenav" id="games" aria-label="Games"></nav>
-    <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
     ${accountLink}
   </div>
-  <div class="fpanel" id="fpanel" hidden><div class="wrap">
-  <form class="controls" id="filters" autocomplete="off">
-    <div class="row">
-      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
-      <select id="sort" aria-label="Sort">
-        <option value="shop">Group by shop, in stock first</option>
-        <option value="price-asc">Price low → high</option>
-        <option value="price-desc">Price high → low</option>
-        <option value="name">Name</option>
-      </select>
-    </div>
-    <div class="row">
-      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
-      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
-    </div>
-    <div class="actions">
-      <button type="submit" class="btn go">Filter</button>
-      <button type="reset" class="btn reset" id="reset">Reset</button>
-      <span class="sub" id="count"></span>
-    </div>
-  </form>
-  </div></div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" aria-label="Games menu">
@@ -422,6 +411,32 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
     <div class="dots" id="bdots"></div>
   </section>
+
+  <div class="filterbar" id="filterbar">
+  <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
+  <div class="fpanel" id="fpanel" hidden><div class="wrap">
+  <form class="controls" id="filters" autocomplete="off">
+    <div class="row">
+      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
+      <select id="sort" aria-label="Sort">
+        <option value="shop">Group by shop, in stock first</option>
+        <option value="price-asc">Price low → high</option>
+        <option value="price-desc">Price high → low</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
+      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn go">Filter</button>
+      <button type="reset" class="btn reset" id="reset">Reset</button>
+      <span class="sub" id="count"></span>
+    </div>
+  </form>
+  </div></div>
+  </div>
 
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
@@ -1019,6 +1034,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   $('q').addEventListener('input', render);
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
+    function setBarH() { var t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--tbh', t.offsetHeight + 'px'); }
+  setBarH(); window.addEventListener('resize', setBarH);
   renderTabs();
   renderBanners();
   buildShops();
