@@ -224,13 +224,10 @@ ${head}
   .sub { color:var(--muted); font-size:.85rem; }
 
   /* hero */
-  .hero { background:var(--hero); color:var(--hero-text); position:relative; padding:4px 0 22px; }
-  .hero::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:var(--holo); }
   .brand { display:flex; align-items:center; gap:14px; }
   .brand svg { width:52px; height:52px; flex:none; filter:drop-shadow(0 4px 10px rgba(227,53,13,.35)); }
   .bname { font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
   .bname span { color:var(--accent); }
-  .tagline { color:var(--hero-muted); font-size:.85rem; margin-top:2px; }
   .account { display:inline-flex; align-items:center; gap:7px; padding:7px 14px 7px 9px; border:1px solid var(--hero-line); border-radius:999px; background:var(--hero-hover); color:var(--hero-text); text-decoration:none; font-size:.9rem; font-weight:600; transition:background .15s, border-color .15s; }
   .account.reg { margin-left:6px; padding:7px 16px; background:var(--accent); border-color:var(--accent); color:#fff; }
   .account.reg:hover { filter:brightness(1.08); background:var(--accent); border-color:var(--accent); }
@@ -238,18 +235,6 @@ ${head}
   .account svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
   @media (max-width:1400px) { .gamenav button { padding:20px 9px; font-size:.88rem; } .account:not(.reg) span { display:none; } .account:not(.reg) { padding:8px; } }
   @media (max-width:480px) { .account:not(.reg) { display:none; } .account.reg { padding:7px 12px; margin-left:0; } }
-  .meta { color:var(--hero-muted); font-size:.85rem; margin:18px 0 0; }
-  .meta b { color:var(--hero-text); font-weight:600; }
-  .stats { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); margin-top:16px; border-top:1px solid var(--hero-line); }
-  .stat { padding:14px 0 0; }
-  .stat:first-child { border-left:0; }
-  .stat b { display:block; font-size:1.5rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; font-variant-numeric:tabular-nums; }
-  .stat span { color:var(--hero-muted); font-size:.8rem; }
-  .stat.s-ok b { color:var(--hero-ok); } .stat.s-new b { color:var(--hero-new); }
-  @media (max-width:560px) {
-    .stats { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-    .stat:nth-child(n+3) { margin-top:4px; }
-  }
 
   /* game banners */
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
@@ -499,19 +484,6 @@ ${head}
   <h3>Games</h3>
   <div class="glist" id="gdrawer"></div>
 </aside>
-<header class="hero">
-  <div class="wrap">
-    <div class="tagline" style="margin-top:14px">Trading card game availability tracker</div>
-    <p class="meta">Checked <b>${esc(when)}</b> (Sofia time) · search phrase <b>“${esc(summary.query)}”</b></p>
-    <div class="stats">
-      <div class="stat"><b id="s-total">0</b><span>products</span></div>
-      <div class="stat s-ok"><b id="s-stock">0</b><span>in stock</span></div>
-      <div class="stat"><b id="s-oos">0</b><span>out of stock</span></div>
-      <div class="stat s-new"><b id="s-new">0</b><span>new today</span></div>
-    </div>
-  </div>
-</header>
-
 <main class="wrap" id="list-view">
   <h1 class="sr">${esc(h1Text)}</h1>
   <section class="banners" id="banners" aria-label="Games" hidden>
@@ -759,20 +731,12 @@ ${head}
   document.addEventListener('click', function () { setPanel(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDrawer(); setPanel(false); } });
 
-  function updateTotals() {
-    var inScope = products.filter(inGame);
-    $('s-total').textContent = inScope.length;
-    $('s-stock').textContent = inScope.filter(function (p) { return p.inStock === true; }).length;
-    $('s-oos').textContent = inScope.filter(function (p) { return p.inStock === false; }).length;
-    $('s-new').textContent = inScope.filter(function (p) { return p.isNew; }).length;
-  }
 
   // shop status chips (click to filter) + filter options, for the selected game
   function buildShops() {
     $('shops').textContent = '';
     $('shop').textContent = '';
     var all = el('option', '', 'All shops'); all.value = ''; $('shop').appendChild(all);
-    updateTotals();
     $('shops-sum').textContent = 'Shops (' + (data.shops.filter(inGame).length + (data.manualShops || []).filter(inGame).length) + ')';
     data.shops.filter(inGame).forEach(function (s) {
       var chip = el('button', 'chip ' + s.status);
