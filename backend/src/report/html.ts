@@ -197,6 +197,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .burger { display:none; }
   .fpanel { position:absolute; top:100%; right:0; left:0; }
   .fpanel .wrap { display:flex; justify-content:flex-end; }
+  .filterbar { position:sticky; top:var(--tbh,62px); z-index:25; background:var(--bg); padding:12px 0; margin-top:6px; display:flex; align-items:center; gap:12px; }
+  .filterbar .fbtn { margin-left:0; color:var(--text); background:var(--surface); border-color:var(--line); box-shadow:var(--shadow); height:42px; padding:0 20px 0 16px; }
+  .filterbar .fbtn span.t { display:inline; }
+  .filterbar .fpanel { top:calc(100% - 4px); }
+  .filterbar .fpanel .wrap { padding:0; justify-content:flex-start; max-width:none; }
+
   .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
   .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
   .fpanel .row select { flex:1; min-width:0; }
@@ -376,31 +382,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       <input type="search" id="q" placeholder="Search…" aria-label="Search products">
     </div>
     <nav class="gamenav" id="games" aria-label="Games"></nav>
-    <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
     ${accountLink}
   </div>
-  <div class="fpanel" id="fpanel" hidden><div class="wrap">
-  <form class="controls" id="filters" autocomplete="off">
-    <div class="row">
-      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
-      <select id="sort" aria-label="Sort">
-        <option value="shop">Group by shop, in stock first</option>
-        <option value="price-asc">Price low → high</option>
-        <option value="price-desc">Price high → low</option>
-        <option value="name">Name</option>
-      </select>
-    </div>
-    <div class="row">
-      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
-      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
-    </div>
-    <div class="actions">
-      <button type="submit" class="btn go">Filter</button>
-      <button type="reset" class="btn reset" id="reset">Reset</button>
-      <span class="sub" id="count"></span>
-    </div>
-  </form>
-  </div></div>
 </div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" aria-label="Games menu">
@@ -428,6 +411,32 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
     <div class="dots" id="bdots"></div>
   </section>
+
+  <div class="filterbar" id="filterbar">
+  <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
+  <div class="fpanel" id="fpanel" hidden><div class="wrap">
+  <form class="controls" id="filters" autocomplete="off">
+    <div class="row">
+      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
+      <select id="sort" aria-label="Sort">
+        <option value="shop">Group by shop, in stock first</option>
+        <option value="price-asc">Price low → high</option>
+        <option value="price-desc">Price high → low</option>
+        <option value="name">Name</option>
+      </select>
+    </div>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
+      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn go">Filter</button>
+      <button type="reset" class="btn reset" id="reset">Reset</button>
+      <span class="sub" id="count"></span>
+    </div>
+  </form>
+  </div></div>
+  </div>
 
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
@@ -1025,6 +1034,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   $('q').addEventListener('input', render);
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
+    function setBarH() { var t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--tbh', t.offsetHeight + 'px'); }
+  setBarH(); window.addEventListener('resize', setBarH);
   renderTabs();
   renderBanners();
   buildShops();
