@@ -139,23 +139,27 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   }
 
   /* game banners */
-  .banners { position:relative; margin:18px 0 6px; }
-  .track { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding:2px; scroll-behavior:smooth; }
+  .banners { position:relative; margin:18px 0 6px; border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
+  .track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; scroll-behavior:smooth; }
   .track::-webkit-scrollbar { display:none; }
-  .slide { flex:0 0 calc((100% - 24px) / 3); min-width:260px; scroll-snap-align:start; position:relative; overflow:hidden; text-align:left; border:0; border-radius:16px; padding:22px 22px 18px; min-height:132px; color:#fff; cursor:pointer; font:inherit; display:flex; flex-direction:column; justify-content:flex-end; gap:2px; background:linear-gradient(135deg,var(--a),var(--b)); box-shadow:var(--shadow); transition:transform .15s, box-shadow .15s; }
-  .slide:hover { transform:translateY(-2px); box-shadow:var(--shadow-hover); }
-  .slide:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
-  .slide.on { outline:3px solid var(--text); outline-offset:2px; }
-  .slide::before, .slide::after { content:""; position:absolute; width:96px; height:134px; border-radius:10px; border:2px solid rgba(255,255,255,.35); background:rgba(255,255,255,.12); right:34px; top:-18px; transform:rotate(14deg); }
-  .slide::after { right:86px; top:-6px; transform:rotate(-8deg); background:rgba(255,255,255,.07); }
+  .slide { flex:0 0 100%; scroll-snap-align:start; position:relative; overflow:hidden; text-align:center; border:0; padding:56px 64px; min-height:300px; color:#fff; cursor:pointer; font:inherit; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg,var(--a),var(--b)); }
+  .slide:focus-visible { outline:3px solid #fff; outline-offset:-6px; }
+  .slide::before, .slide::after { content:""; position:absolute; width:150px; height:210px; border-radius:14px; border:2px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); top:50%; }
+  .slide::before { left:6%; transform:translateY(-50%) rotate(-12deg); }
+  .slide::after { right:6%; transform:translateY(-50%) rotate(10deg); }
   .slide > * { position:relative; z-index:1; }
-  .s-name { font-size:1.45rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; text-shadow:0 2px 10px rgba(0,0,0,.3); }
-  .s-meta { font-size:.85rem; opacity:.92; }
-  .s-go { margin-top:8px; font-size:.82rem; font-weight:700; }
-  .cnav { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:38px; height:38px; border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--text); font-size:1.3rem; line-height:1; cursor:pointer; box-shadow:var(--shadow); }
-  .cnav.prev { left:-19px; } .cnav.next { right:-19px; }
+  .s-name { font-size:2.6rem; font-weight:800; letter-spacing:-.02em; line-height:1.05; text-transform:uppercase; text-shadow:0 3px 14px rgba(0,0,0,.4); }
+  .s-meta { font-size:1.05rem; opacity:.95; text-shadow:0 1px 6px rgba(0,0,0,.4); }
+  .s-go { margin-top:10px; padding:10px 30px; border:2px solid #fff; border-radius:6px; font-size:.95rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:rgba(0,0,0,.18); transition:background .15s; }
+  .slide:hover .s-go { background:#fff; color:#111; text-shadow:none; }
+  .cnav { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:42px; height:42px; border-radius:50%; border:0; background:rgba(0,0,0,.35); color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; }
+  .cnav:hover { background:rgba(0,0,0,.6); }
+  .cnav.prev { left:12px; } .cnav.next { right:12px; }
+  .dots { position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:8px; z-index:3; }
+  .dots button { width:9px; height:9px; padding:0; border-radius:50%; border:0; background:rgba(255,255,255,.5); cursor:pointer; }
+  .dots button.on { background:#fff; }
   @media (hover:none) { .cnav { display:none; } }
-  @media (max-width:860px) { .slide { flex-basis:78%; } }
+  @media (max-width:860px) { .slide { padding:40px 20px 44px; min-height:220px; } .s-name { font-size:1.8rem; } .slide::before, .slide::after { width:84px; height:118px; } }
   #results { scroll-margin-top:76px; }
 
   /* shops */
@@ -418,6 +422,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     <button type="button" class="cnav prev" id="bprev" aria-label="Previous">‹</button>
     <div class="track" id="btrack"></div>
     <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
+    <div class="dots" id="bdots"></div>
   </section>
 
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
@@ -513,17 +518,32 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       b.style.setProperty('--b', t[1]);
       b.appendChild(el('span', 's-name', g.name));
       b.appendChild(el('span', 's-meta', list.length + ' products \u00b7 ' + inStock + ' in stock'));
-      b.appendChild(el('span', 's-go', 'Browse \u2192'));
+      b.appendChild(el('span', 's-go', 'Shop'));
       b.addEventListener('click', function () {
         setGame(g.slug);
         $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       track.appendChild(b);
     });
+    var dots = $('bdots');
+    dots.textContent = '';
+    games.forEach(function (g, i) {
+      var d = el('button', '');
+      d.type = 'button';
+      d.setAttribute('aria-label', g.name);
+      d.addEventListener('click', function () { track.scrollTo({ left: i * track.clientWidth }); });
+      dots.appendChild(d);
+    });
+    function updateDots() {
+      var i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+      var ds = dots.children;
+      for (var k = 0; k < ds.length; k++) ds[k].classList.toggle('on', k === i);
+    }
+    track.addEventListener('scroll', updateDots);
+    updateDots();
     function step(dir) {
-      var first = track.querySelector('.slide');
-      var w = first ? first.getBoundingClientRect().width + 12 : 300;
-      var atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+      var w = track.clientWidth;
+      var atEnd = track.scrollLeft + w >= track.scrollWidth - 4;
       if (dir > 0 && atEnd) track.scrollTo({ left: 0 });
       else if (dir < 0 && track.scrollLeft <= 2) track.scrollTo({ left: track.scrollWidth });
       else track.scrollBy({ left: dir * w });
