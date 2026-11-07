@@ -144,10 +144,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .track::-webkit-scrollbar { display:none; }
   .slide { flex:0 0 100%; scroll-snap-align:start; position:relative; overflow:hidden; text-align:center; border:0; padding:56px 64px; min-height:300px; color:#fff; cursor:pointer; font:inherit; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg,var(--a),var(--b)); }
   .slide:focus-visible { outline:3px solid #fff; outline-offset:-6px; }
-  .slide::before, .slide::after { content:""; position:absolute; width:150px; height:210px; border-radius:14px; border:2px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); top:50%; }
-  .slide::before { left:6%; transform:translateY(-50%) rotate(-12deg); }
-  .slide::after { right:6%; transform:translateY(-50%) rotate(10deg); }
   .slide > * { position:relative; z-index:1; }
+  .slide > .art { position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
   .s-name { font-size:2.6rem; font-weight:800; letter-spacing:-.02em; line-height:1.05; text-transform:uppercase; text-shadow:0 3px 14px rgba(0,0,0,.4); }
   .s-meta { font-size:1.05rem; opacity:.95; text-shadow:0 1px 6px rgba(0,0,0,.4); }
   .s-go { margin-top:10px; padding:10px 30px; border:2px solid #fff; border-radius:6px; font-size:.95rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:rgba(0,0,0,.18); transition:background .15s; }
@@ -159,7 +157,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   .dots button { width:9px; height:9px; padding:0; border-radius:50%; border:0; background:rgba(255,255,255,.5); cursor:pointer; }
   .dots button.on { background:#fff; }
   @media (hover:none) { .cnav { display:none; } }
-  @media (max-width:860px) { .slide { padding:40px 20px 44px; min-height:220px; } .s-name { font-size:1.8rem; } .slide::before, .slide::after { width:84px; height:118px; } }
+  @media (max-width:860px) { .slide { padding:40px 20px 44px; min-height:220px; } .s-name { font-size:1.8rem; } }
   #results { scroll-margin-top:76px; }
 
   /* shops */
@@ -501,6 +499,42 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     for (var i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
     return ['hsl(' + h + ',60%,32%)', 'hsl(' + ((h + 50) % 360) + ',65%,42%)'];
   }
+  var EMB = {
+    flame: '<path d="M30 4C38 18 52 26 50 42C48 54 38 58 30 58C22 58 12 54 10 42C8 30 20 24 22 12C26 18 28 12 30 4Z"/>',
+    drop: '<path d="M30 4C40 20 52 32 50 44C48 54 40 58 30 58C20 58 12 54 10 44C8 32 20 20 30 4Z"/>',
+    leaf: '<path d="M8 52C8 24 26 8 54 6C54 34 40 54 8 52Z"/>',
+    bolt: '<path d="M34 2L12 34H28L22 58L48 24H32L34 2Z"/>',
+    sail: '<path d="M28 4L28 48L6 48C8 28 16 12 28 4ZM33 10C43 20 49 34 51 48L33 48Z"/><rect x="4" y="52" width="52" height="5" rx="2.5"/>',
+    star: '<path d="M30 2L36 24L58 30L36 36L30 58L24 36L2 30L24 24Z"/>',
+    wave: '<path d="M2 36C10 24 18 24 26 36C34 48 42 48 50 36L58 40L58 54L2 54Z"/>',
+    pyramid: '<path d="M30 4L56 54H4Z"/><circle cx="30" cy="36" r="7" fill="#0006"/>',
+    ring: '<circle cx="30" cy="30" r="24" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="30" cy="30" r="9"/>',
+    crystal: '<path d="M30 2L50 22L30 58L10 22Z"/>',
+    sun: '<circle cx="30" cy="30" r="13"/><path d="M30 0V10M30 50V60M0 30H10M50 30H60M9 9L16 16M44 44L51 51M51 9L44 16M16 44L9 51" stroke="currentColor" stroke-width="4" fill="none"/>',
+    mtn: '<path d="M2 54L22 14L34 34L42 22L58 54Z"/>'
+  };
+  var ARTSETS = {
+    pokemon: ['flame', 'drop', 'leaf', 'bolt'],
+    onepiece: ['sail', 'star', 'wave', 'sun'],
+    yugioh: ['pyramid', 'ring', 'crystal', 'star'],
+    mtg: ['mtn', 'flame', 'sun', 'crystal']
+  };
+  function artCard(x, y, r, k) {
+    return '<g transform="translate(' + x + ' ' + y + ') rotate(' + r + ')"><rect x="-58" y="-82" width="116" height="164" rx="12" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.6)" stroke-width="2.5"/><rect x="-48" y="-72" width="96" height="144" rx="8" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/><g transform="translate(-30 -30)" fill="#fff" color="#fff" opacity=".92">' + (EMB[k] || EMB.star) + '</g></g>';
+  }
+  function artFor(slug) {
+    var set = ARTSETS[slug] || ['star', 'crystal', 'ring', 'sun'];
+    var sp = '';
+    for (var i = 0; i < 26; i++) {
+      var sx = (i * 197 + 61) % 1200, sy = (i * 83 + 17) % 300, sr = 1.5 + (i % 4);
+      sp += '<circle cx="' + sx + '" cy="' + sy + '" r="' + sr + '" fill="#fff" opacity="' + (0.2 + (i % 5) * 0.1) + '"/>';
+    }
+    return '<svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
+      '<circle cx="180" cy="60" r="190" fill="#fff" opacity=".08"/><circle cx="1040" cy="270" r="230" fill="#000" opacity=".12"/>' +
+      '<circle cx="600" cy="150" r="260" fill="#fff" opacity=".06"/>' + sp +
+      '<g opacity=".95">' + artCard(150, 165, -16, set[0]) + artCard(275, 150, -4, set[1]) + artCard(925, 150, 5, set[2]) + artCard(1050, 165, 17, set[3]) + '</g>' +
+      '<defs><radialGradient id="gl' + slug + '"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs><ellipse cx="600" cy="150" rx="380" ry="150" fill="url(#gl' + slug + ')"/></svg>';
+  }
   function renderBanners() {
     var box = $('banners');
     var track = $('btrack');
@@ -516,6 +550,9 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       var t = theme(g.slug);
       b.style.setProperty('--a', t[0]);
       b.style.setProperty('--b', t[1]);
+      var art = el('span', 'art');
+      art.innerHTML = artFor(g.slug);
+      b.appendChild(art);
       b.appendChild(el('span', 's-name', g.name));
       b.appendChild(el('span', 's-meta', list.length + ' products \u00b7 ' + inStock + ' in stock'));
       b.appendChild(el('span', 's-go', 'Shop'));
