@@ -138,6 +138,26 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     .stat:nth-child(n+3) { margin-top:4px; }
   }
 
+  /* game banners */
+  .banners { position:relative; margin:18px 0 6px; }
+  .track { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding:2px; scroll-behavior:smooth; }
+  .track::-webkit-scrollbar { display:none; }
+  .slide { flex:0 0 calc((100% - 24px) / 3); min-width:260px; scroll-snap-align:start; position:relative; overflow:hidden; text-align:left; border:0; border-radius:16px; padding:22px 22px 18px; min-height:132px; color:#fff; cursor:pointer; font:inherit; display:flex; flex-direction:column; justify-content:flex-end; gap:2px; background:linear-gradient(135deg,var(--a),var(--b)); box-shadow:var(--shadow); transition:transform .15s, box-shadow .15s; }
+  .slide:hover { transform:translateY(-2px); box-shadow:var(--shadow-hover); }
+  .slide:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  .slide.on { outline:3px solid var(--text); outline-offset:2px; }
+  .slide::before, .slide::after { content:""; position:absolute; width:96px; height:134px; border-radius:10px; border:2px solid rgba(255,255,255,.35); background:rgba(255,255,255,.12); right:34px; top:-18px; transform:rotate(14deg); }
+  .slide::after { right:86px; top:-6px; transform:rotate(-8deg); background:rgba(255,255,255,.07); }
+  .slide > * { position:relative; z-index:1; }
+  .s-name { font-size:1.45rem; font-weight:800; letter-spacing:-.02em; line-height:1.1; text-shadow:0 2px 10px rgba(0,0,0,.3); }
+  .s-meta { font-size:.85rem; opacity:.92; }
+  .s-go { margin-top:8px; font-size:.82rem; font-weight:700; }
+  .cnav { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:38px; height:38px; border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--text); font-size:1.3rem; line-height:1; cursor:pointer; box-shadow:var(--shadow); }
+  .cnav.prev { left:-19px; } .cnav.next { right:-19px; }
+  @media (hover:none) { .cnav { display:none; } }
+  @media (max-width:860px) { .slide { flex-basis:78%; } }
+  #results { scroll-margin-top:76px; }
+
   /* shops */
   .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
   /* top bar: stays on screen while scrolling */
@@ -394,6 +414,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
 </header>
 
 <main class="wrap" id="list-view">
+  <section class="banners" id="banners" aria-label="Games" hidden>
+    <button type="button" class="cnav prev" id="bprev" aria-label="Previous">‹</button>
+    <div class="track" id="btrack"></div>
+    <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
+  </section>
+
   <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
 
   <div id="results"></div>
@@ -458,7 +484,66 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   var game = '';
   var games = data.games || [];
   function inGame(x) { return !game || x.game === game; }
-  function setGame(slug) { game = slug; renderTabs(); buildShops(); render(); closeDrawer(); }
+  var THEMES = {
+    pokemon: ['#e3350d', '#f59e0b'],
+    onepiece: ['#0b3d91', '#e11d48'],
+    yugioh: ['#4c1d95', '#b45309'],
+    mtg: ['#14532d', '#9a3412']
+  };
+  function theme(slug) {
+    if (THEMES[slug]) return THEMES[slug];
+    var h = 0;
+    for (var i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
+    return ['hsl(' + h + ',60%,32%)', 'hsl(' + ((h + 50) % 360) + ',65%,42%)'];
+  }
+  function renderBanners() {
+    var box = $('banners');
+    var track = $('btrack');
+    track.textContent = '';
+    if (games.length < 2) { box.hidden = true; return; }
+    box.hidden = false;
+    games.forEach(function (g) {
+      var list = products.filter(function (p) { return p.game === g.slug; });
+      var inStock = list.filter(function (p) { return p.inStock === true; }).length;
+      var b = el('button', 'slide');
+      b.type = 'button';
+      b.setAttribute('data-game', g.slug);
+      var t = theme(g.slug);
+      b.style.setProperty('--a', t[0]);
+      b.style.setProperty('--b', t[1]);
+      b.appendChild(el('span', 's-name', g.name));
+      b.appendChild(el('span', 's-meta', list.length + ' products \u00b7 ' + inStock + ' in stock'));
+      b.appendChild(el('span', 's-go', 'Browse \u2192'));
+      b.addEventListener('click', function () {
+        setGame(g.slug);
+        $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      track.appendChild(b);
+    });
+    function step(dir) {
+      var first = track.querySelector('.slide');
+      var w = first ? first.getBoundingClientRect().width + 12 : 300;
+      var atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+      if (dir > 0 && atEnd) track.scrollTo({ left: 0 });
+      else if (dir < 0 && track.scrollLeft <= 2) track.scrollTo({ left: track.scrollWidth });
+      else track.scrollBy({ left: dir * w });
+    }
+    $('bprev').onclick = function () { step(-1); };
+    $('bnext').onclick = function () { step(1); };
+    var paused = false;
+    ['mouseenter', 'focusin', 'touchstart'].forEach(function (ev) { box.addEventListener(ev, function () { paused = true; }); });
+    ['mouseleave', 'focusout'].forEach(function (ev) { box.addEventListener(ev, function () { paused = false; }); });
+    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setInterval(function () { if (!paused && !document.hidden) step(1); }, 5000);
+    }
+  }
+  function markBanners() {
+    var slides = document.querySelectorAll('#btrack .slide');
+    for (var i = 0; i < slides.length; i++) {
+      slides[i].classList.toggle('on', slides[i].getAttribute('data-game') === game);
+    }
+  }
+  function setGame(slug) { game = slug; renderTabs(); markBanners(); buildShops(); render(); closeDrawer(); }
   function renderTabs() {
     ['games', 'gdrawer'].forEach(function (id) {
       var box = $(id);
@@ -878,6 +963,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
   renderTabs();
+  renderBanners();
   buildShops();
   render();
   route();
