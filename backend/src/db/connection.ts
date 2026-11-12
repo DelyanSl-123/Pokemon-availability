@@ -92,6 +92,14 @@ export function openDb(file: string): DB {
       expires_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS price_history (
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      day        TEXT NOT NULL,
+      price      REAL NOT NULL,
+      in_stock   INTEGER,
+      PRIMARY KEY (product_id, day)
+    );
+
     CREATE TABLE IF NOT EXISTS shop_suggestions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       url        TEXT NOT NULL,

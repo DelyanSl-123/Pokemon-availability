@@ -38,6 +38,8 @@ export interface ReportOptions {
   manualShops?: { name: string; url: string; note: string; game?: string }[];
   /** Address that accepts shop suggestions (POST, JSON); shows the "Suggest a shop" form. Site only. */
   suggestUrl?: string;
+  /** Address that returns the recorded prices of a product (GET ?url=...); adds a "Price history" chart to each card. Site only. */
+  historyUrl?: string;
   /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
   seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
 }
@@ -191,6 +193,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     '--field:#0D1016; --field-line:#2E3545; --badge-bg:rgba(255,106,61,.14); --badge-t:#FF8A63; --inv:#F1F3F7; --inv-t:#0D1016;' +
     '--shadow:0 1px 2px rgba(0,0,0,.3); --shadow-hover:0 12px 30px rgba(0,0,0,.45);';
   const suggestUrl = opts.suggestUrl && /^(https?:\/\/|\/)/i.test(opts.suggestUrl) ? opts.suggestUrl : '';
+  const historyUrl = opts.historyUrl && /^(https?:\/\/|\/)/i.test(opts.historyUrl) ? opts.historyUrl : '';
   const seo = opts.seo;
   const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
   const initialGame = seoGame ? seoGame.slug : '';
@@ -224,6 +227,12 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       '<div class="msg" id="sg-msg" role="status"></div>' +
       '<div class="acts"><button type="button" class="btn ghost" id="sg-cancel">Close</button><button type="submit" class="btn primary" id="sg-send">Send</button></div>' +
       '</form></dialog>'
+    : '';
+  const historyDialog = historyUrl
+    ? `<dialog class="sdlg hdlg" id="hist-dlg" aria-labelledby="hist-title" data-url="${esc(historyUrl)}">` +
+      '<h2 id="hist-title">Price history</h2><p class="sub" id="hist-name"></p>' +
+      '<div class="hstats" id="hist-stats"></div><div class="hchart" id="hist-chart"></div><p class="sub" id="hist-note"></p>' +
+      '<div class="acts"><button type="button" class="btn ghost" id="hist-close">Close</button></div></dialog>'
     : '';
 
   return `<!doctype html>
@@ -557,6 +566,22 @@ ${head}
   .sdlg .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
   .sdlg .acts { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
   .sdlg .msg { margin-top:12px; font-size:.9rem; min-height:1.2em; }
+  dialog.hdlg { width:min(640px, calc(100% - 32px)); }
+  .hstats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:16px; }
+  .hstats div { padding:12px 14px; border-radius:12px; background:var(--field); border:1px solid var(--field-line); }
+  .hstats b { display:block; font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
+  .hstats span { font-size:.78rem; color:var(--muted); }
+  .hchart { margin-top:16px; }
+  .hchart svg { display:block; width:100%; height:auto; }
+  .hchart .axis { fill:var(--muted); font-size:12px; font-family:inherit; }
+  .hchart .gridl { stroke:var(--line); stroke-width:1; }
+  .hchart .line { fill:none; stroke:var(--accent-t); stroke-width:2.5; stroke-linejoin:round; stroke-linecap:round; }
+  .hchart .area { fill:var(--accent-t); opacity:.1; }
+  .hchart .pt { fill:var(--surface); stroke:var(--accent-t); stroke-width:2; }
+  .hchart .pt.oos { stroke:var(--muted); }
+  .hist { margin:0 16px 14px; height:38px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--text); font:inherit; font-size:.85rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .hist:hover { border-color:var(--muted); }
+  .hist svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .sdlg .msg.ok { color:var(--ok); } .sdlg .msg.err { color:var(--bad); }
   @media (max-width:800px) { .steps { grid-template-columns:1fr; } .sec h2 { font-size:1.7rem; } }
   @media (max-width:700px) {
@@ -678,6 +703,7 @@ ${head}
   <div class="wrap copy">© CollectibleMarket. All trademarks belong to their owners.</div>
 </footer>
 ${suggestDialog}
+${historyDialog}
 
 <div class="cmpbar" id="cmpbar" hidden>
   <div class="thumbs" id="cmp-thumbs"></div>
@@ -692,6 +718,7 @@ ${suggestDialog}
   var data = JSON.parse(document.getElementById('data').textContent);
   var $ = function (id) { return document.getElementById(id); };
   var products = data.products;
+  var HIST = document.getElementById('hist-dlg'); // only on the website
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -902,6 +929,15 @@ ${suggestDialog}
     pick.appendChild(box);
     pick.appendChild(el('span', '', 'Compare'));
     c.appendChild(pick);
+    if (HIST && link) {
+      var hb = el('button', 'hist');
+      hb.type = 'button';
+      hb.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-6 4 3 6-8"/><path d="M3 21h18"/></svg>';
+      hb.appendChild(document.createTextNode('Price history'));
+      hb.setAttribute('aria-label', 'Price history of ' + p.title);
+      hb.addEventListener('click', function () { showHistory(p); });
+      c.appendChild(hb);
+    }
     return c;
   }
 
@@ -1170,6 +1206,66 @@ ${suggestDialog}
     setGame(a.getAttribute('data-game'));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
+
+  // price history chart (only on the website, where the prices are recorded every day)
+  function money(v, cur) { return v.toFixed(2) + (cur ? ' ' + cur : ''); }
+  function drawHistory(points, cur) {
+    var W = 600, H = 240, L = 62, R = 16, T = 14, B = 34;
+    var min = Infinity, max = -Infinity;
+    points.forEach(function (pt) { if (pt.price < min) min = pt.price; if (pt.price > max) max = pt.price; });
+    var pad = (max - min) * 0.15 || Math.max(1, max * 0.05);
+    var lo = Math.max(0, min - pad), hi = max + pad;
+    var x = function (i) { return points.length === 1 ? (L + W - R) / 2 : L + (W - L - R) * i / (points.length - 1); };
+    var y = function (v) { return T + (H - T - B) * (1 - (v - lo) / (hi - lo)); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Price over time, from ' + points[0].day + ' to ' + points[points.length - 1].day + '">';
+    [hi, (hi + lo) / 2, lo].forEach(function (v) {
+      svg += '<line class="gridl" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>' +
+        '<text class="axis" x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + v.toFixed(2) + '</text>';
+    });
+    var d = '';
+    points.forEach(function (pt, i) { d += (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(pt.price).toFixed(1); });
+    if (points.length > 1) {
+      svg += '<path class="area" d="' + d + 'L' + x(points.length - 1).toFixed(1) + ' ' + (H - B) + 'L' + x(0).toFixed(1) + ' ' + (H - B) + 'Z"/>';
+      svg += '<path class="line" d="' + d + '"/>';
+    }
+    var showDots = points.length <= 40;
+    points.forEach(function (pt, i) {
+      if (!showDots && i !== points.length - 1) return;
+      svg += '<circle class="pt' + (pt.inStock === false ? ' oos' : '') + '" cx="' + x(i).toFixed(1) + '" cy="' + y(pt.price).toFixed(1) + '" r="4"><title>' +
+        pt.day + ': ' + money(pt.price, cur) + (pt.inStock === false ? ' (out of stock)' : '') + '</title></circle>';
+    });
+    svg += '<text class="axis" x="' + L + '" y="' + (H - 10) + '">' + points[0].day + '</text>';
+    if (points.length > 1) svg += '<text class="axis" x="' + (W - R) + '" y="' + (H - 10) + '" text-anchor="end">' + points[points.length - 1].day + '</text>';
+    return svg + '</svg>';
+  }
+  function showHistory(p) {
+    $('hist-name').textContent = p.title + ' \u00b7 ' + p.shop;
+    $('hist-stats').textContent = '';
+    $('hist-chart').textContent = '';
+    $('hist-note').textContent = 'Loading\u2026';
+    if (HIST.showModal) HIST.showModal(); else HIST.setAttribute('open', '');
+    fetch(HIST.getAttribute('data-url') + '?url=' + encodeURIComponent(p.url))
+      .then(function (r) { if (!r.ok) throw new Error('failed'); return r.json(); })
+      .then(function (h) {
+        var pts = (h.points || []).filter(function (pt) { return typeof pt.price === 'number'; });
+        if (pts.length === 0) { $('hist-note').textContent = 'No prices recorded for this product yet. The price is saved once a day from now on.'; return; }
+        var cur = h.currency || p.currency || '';
+        var lowest = pts[0], highest = pts[0];
+        pts.forEach(function (pt) { if (pt.price < lowest.price) lowest = pt; if (pt.price > highest.price) highest = pt; });
+        [['Now', pts[pts.length - 1]], ['Lowest', lowest], ['Highest', highest]].forEach(function (row) {
+          var box = el('div');
+          box.appendChild(el('b', '', money(row[1].price, cur)));
+          box.appendChild(el('span', '', row[0] + ' \u00b7 ' + row[1].day));
+          $('hist-stats').appendChild(box);
+        });
+        $('hist-chart').innerHTML = drawHistory(pts, cur);
+        $('hist-note').textContent = pts.length === 1
+          ? 'Only one day is recorded so far. The chart grows with every daily check.'
+          : pts.length + ' days recorded. Grey points: the product was out of stock that day.';
+      })
+      .catch(function () { $('hist-note').textContent = 'Could not load the price history. Please try again.'; });
+  }
+  if (HIST) $('hist-close').addEventListener('click', function () { if (HIST.close) HIST.close(); else HIST.removeAttribute('open'); });
 
   // "Suggest a shop" form (only on the website)
   var dlg = $('suggest-dlg');

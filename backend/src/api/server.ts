@@ -39,6 +39,7 @@ import {
   listGames,
   listProducts,
   listRuns,
+  priceHistory,
   addShopSuggestion,
   listShopSuggestions,
   deleteShopSuggestion,
@@ -97,7 +98,7 @@ const SESSION_COOKIE = 'cm_session';
 const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config', '/api/suggestions']);
 
 /** Read-only data that anyone may look at without signing in: the home page of the site. */
-const PUBLIC_GET_PATHS = new Set(['/api/shops', '/api/games', '/api/products', '/api/runs']);
+const PUBLIC_GET_PATHS = new Set(['/api/shops', '/api/games', '/api/products', '/api/runs', '/api/price-history']);
 
 function readCookie(req: FastifyRequest, name: string): string | undefined {
   for (const part of (req.headers.cookie ?? '').split(';')) {
@@ -488,6 +489,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return listProducts(deps.db, { shopId: q.shopId, game: q.game, inStockOnly: q.inStock === 'true' });
   });
 
+  // The prices recorded for one product (by its link), one per day: the chart on the home page.
+  app.get('/api/price-history', async (req) => {
+    const q = z.object({ url: z.string().min(1).max(2000) }).parse(req.query);
+    return priceHistory(deps.db, q.url);
+  });
+
   app.get('/api/runs', async () => listRuns(deps.db, 20));
 
   app.post('/api/run', { preHandler: requireAdmin }, async (req, reply) => {
@@ -556,6 +563,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return buildReportHtml(summary, {
       signInUrl: '/app?login',
       suggestUrl: '/api/suggestions',
+      historyUrl: '/api/price-history',
       manualShops,
       ...(deps.siteUrl ? { seo: { baseUrl: deps.siteUrl, game } } : {}),
     });

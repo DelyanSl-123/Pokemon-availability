@@ -203,6 +203,8 @@ export function upsertProduct(
       `INSERT INTO products (shop_id, url, title, price, currency, in_stock, image_url, first_seen, last_seen)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(shopId, p.url, p.title, p.price, p.currency, boolToDb(p.inStock), p.imageUrl, nowIso, nowIso);
+    const created = db.prepare('SELECT id FROM products WHERE shop_id = ? AND url = ?').get(shopId, p.url) as { id: number };
+    recordPrice(db, created.id, p, nowIso);
     return { isNew: true, backInStock: false };
   }
 
@@ -210,8 +212,39 @@ export function upsertProduct(
     `UPDATE products SET title = ?, price = ?, currency = ?, in_stock = ?, image_url = COALESCE(?, image_url), last_seen = ?
      WHERE id = ?`,
   ).run(p.title, p.price, p.currency, boolToDb(p.inStock), p.imageUrl, nowIso, existing.id);
+  recordPrice(db, existing.id, p, nowIso);
 
   return { isNew: false, backInStock: existing.in_stock === 0 && p.inStock === true };
+}
+
+/** One price per product and day (the last check of the day wins); products without a price are skipped. */
+function recordPrice(db: DB, productId: number, p: ExtractedProduct, nowIso: string): void {
+  if (p.price === null || p.price === undefined) return;
+  db.prepare(
+    `INSERT INTO price_history (product_id, day, price, in_stock) VALUES (?, ?, ?, ?)
+     ON CONFLICT (product_id, day) DO UPDATE SET price = excluded.price, in_stock = excluded.in_stock`,
+  ).run(productId, nowIso.slice(0, 10), p.price, boolToDb(p.inStock));
+}
+
+export interface PricePoint {
+  day: string;
+  price: number;
+  inStock: boolean | null;
+}
+
+/** The recorded prices of the product with this link, oldest first (at most the last `limit` days). */
+export function priceHistory(db: DB, url: string, limit = 365): { currency: string | null; points: PricePoint[] } {
+  const product = db.prepare('SELECT id, currency FROM products WHERE url = ? ORDER BY last_seen DESC LIMIT 1').get(url) as
+    | { id: number; currency: string | null }
+    | undefined;
+  if (!product) return { currency: null, points: [] };
+  const rows = db
+    .prepare('SELECT day, price, in_stock FROM price_history WHERE product_id = ? ORDER BY day DESC LIMIT ?')
+    .all(product.id, limit) as { day: string; price: number; in_stock: number | null }[];
+  return {
+    currency: product.currency,
+    points: rows.reverse().map((r) => ({ day: r.day, price: r.price, inStock: r.in_stock === null ? null : r.in_stock === 1 })),
+  };
 }
 
 export function listProducts(db: DB, filter: { shopId?: number; game?: string; inStockOnly?: boolean } = {}): StoredProduct[] {

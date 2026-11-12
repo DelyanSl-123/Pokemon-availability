@@ -147,6 +147,11 @@ describe('report menu of games', () => {
     expect(html).not.toContain('Poké Ball');
   });
 
+  it('adds the price history chart only when an address for it is given', () => {
+    expect(buildReportHtml(summary)).not.toContain('id="hist-dlg"');
+    expect(buildReportHtml(summary, { historyUrl: '/api/price-history' })).toContain('id="hist-dlg"');
+  });
+
   it('shows the "Suggest a shop" form only when an address for it is given', () => {
     expect(buildReportHtml(summary)).not.toContain('id="suggest-dlg"');
     const html = buildReportHtml(summary, { suggestUrl: '/api/suggestions' });
