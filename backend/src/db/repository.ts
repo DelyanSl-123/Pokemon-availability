@@ -267,3 +267,28 @@ export function listRuns(db: DB, limit = 20): RunSummary[] {
     .all(limit) as { summary: string }[];
   return rows.map((r) => JSON.parse(r.summary) as RunSummary);
 }
+
+/* ---- shops suggested by visitors (the "Suggest a shop" form on the home page) ---- */
+
+export interface ShopSuggestion {
+  id: number;
+  url: string;
+  note: string;
+  createdAt: string;
+}
+
+export function addShopSuggestion(db: DB, url: string, note: string): ShopSuggestion {
+  const info = db.prepare('INSERT INTO shop_suggestions (url, note) VALUES (?, ?)').run(url, note);
+  return listShopSuggestions(db).find((s) => s.id === Number(info.lastInsertRowid))!;
+}
+
+export function listShopSuggestions(db: DB, limit = 200): ShopSuggestion[] {
+  const rows = db
+    .prepare('SELECT id, url, note, created_at FROM shop_suggestions ORDER BY id DESC LIMIT ?')
+    .all(limit) as { id: number; url: string; note: string; created_at: string }[];
+  return rows.map((r) => ({ id: r.id, url: r.url, note: r.note, createdAt: r.created_at }));
+}
+
+export function deleteShopSuggestion(db: DB, id: number): boolean {
+  return db.prepare('DELETE FROM shop_suggestions WHERE id = ?').run(id).changes > 0;
+}

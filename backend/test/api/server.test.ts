@@ -393,4 +393,29 @@ describe('API accounts', () => {
       expect((await app.inject({ method: 'DELETE', url: '/api/games/mtg', headers: member })).statusCode).toBe(403);
     });
   });
+
+  describe('shop suggestions', () => {
+    it('accepts a suggestion from anyone, stores it and shows it only to the admin', async () => {
+      const { app } = await setup();
+      const sent = await app.inject({ method: 'POST', url: '/api/suggestions', payload: { url: 'newshop.bg', note: 'Sells One Piece' } });
+      expect(sent.statusCode).toBe(201);
+
+      expect((await app.inject({ method: 'GET', url: '/api/suggestions' })).statusCode).toBe(403);
+      const headers = await signIn(app);
+      const list = await app.inject({ method: 'GET', url: '/api/suggestions', headers });
+      expect(list.json()).toMatchObject([{ url: 'https://newshop.bg', note: 'Sells One Piece' }]);
+
+      const id = list.json()[0].id;
+      expect((await app.inject({ method: 'DELETE', url: `/api/suggestions/${id}`, headers })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'GET', url: '/api/suggestions', headers })).json()).toEqual([]);
+    });
+
+    it('rejects something that is not a shop address and ignores bots that fill the hidden field', async () => {
+      const { app } = await setup();
+      expect((await app.inject({ method: 'POST', url: '/api/suggestions', payload: { url: 'not a shop' } })).statusCode).toBe(400);
+      expect((await app.inject({ method: 'POST', url: '/api/suggestions', payload: { url: 'spam.bg', website: 'x' } })).statusCode).toBe(201);
+      const headers = await signIn(app);
+      expect((await app.inject({ method: 'GET', url: '/api/suggestions', headers })).json()).toEqual([]);
+    });
+  });
 });

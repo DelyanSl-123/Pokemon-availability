@@ -36,6 +36,8 @@ export interface ReportOptions {
   signInUrl?: string;
   /** Shops that are never checked automatically; listed with a link to check them by hand. */
   manualShops?: { name: string; url: string; note: string; game?: string }[];
+  /** Address that accepts shop suggestions (POST, JSON); shows the "Suggest a shop" form. Site only. */
+  suggestUrl?: string;
   /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
   seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
 }
@@ -176,6 +178,19 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     })),
   };
 
+  const LIGHT_VARS =
+    '--bg:#F3F5F9; --surface:#fff; --text:#10131C; --muted:#5B6474; --line:#E1E5EC; --accent:#D92F08; --accent-t:#C22A07;' +
+    '--ok:#166534; --ok-bg:#E3F4E9; --bad:#B42318; --bad-bg:#FCEBE8; --warn:#A85A07; --unk-bg:#ECEFF4;' +
+    '--img:#fff; --hero:#fff; --hero-text:#10131C; --hero-muted:#5B6474; --hero-line:#E1E5EC; --hero-ok:#166534; --hero-new:#B45309; --hero-hover:#F3F5F9; --logo-edge:#fff;' +
+    '--field:#F3F5F9; --field-line:#D5DBE5; --badge-bg:#FDE7DF; --badge-t:#B4270A; --inv:#10131C; --inv-t:#fff;' +
+    '--shadow:0 1px 2px rgba(16,19,28,.04), 0 6px 20px rgba(16,19,28,.05); --shadow-hover:0 2px 4px rgba(16,19,28,.06), 0 14px 32px rgba(16,19,28,.12);';
+  const DARK_VARS =
+    '--bg:#0D1016; --surface:#161A23; --text:#F1F3F7; --muted:#A3ACBB; --line:#262C3A; --accent:#D92F08; --accent-t:#FF7A52;' +
+    '--ok:#6FE0A0; --ok-bg:rgba(111,224,160,.12); --bad:#FF9A8F; --bad-bg:rgba(255,154,143,.12); --warn:#FBBF24; --unk-bg:rgba(255,255,255,.07);' +
+    '--img:#F4F3F0; --hero:#161A23; --hero-text:#F1F3F7; --hero-muted:#A3ACBB; --hero-line:#262C3A; --hero-ok:#6FE0A0; --hero-new:#FFB86B; --hero-hover:#0D1016; --logo-edge:#fff;' +
+    '--field:#0D1016; --field-line:#2E3545; --badge-bg:rgba(255,106,61,.14); --badge-t:#FF8A63; --inv:#F1F3F7; --inv-t:#0D1016;' +
+    '--shadow:0 1px 2px rgba(0,0,0,.3); --shadow-hover:0 12px 30px rgba(0,0,0,.45);';
+  const suggestUrl = opts.suggestUrl && /^(https?:\/\/|\/)/i.test(opts.suggestUrl) ? opts.suggestUrl : '';
   const seo = opts.seo;
   const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
   const initialGame = seoGame ? seoGame.slug : '';
@@ -188,10 +203,27 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     ? `${seoGame.name} TCG products in Bulgarian shops: prices and availability`
     : 'Trading card games in Bulgarian shops: Pokémon, One Piece, Yu-Gi-Oh! and Magic prices and availability';
   const crawlList = seo ? crawlableList(summary.products.filter((p) => !seoGame || (p.game ?? 'pokemon') === seoGame.slug), label) : '';
-  const gameLinks = seo
-    ? '<nav class="sub" aria-label="Games">' +
-      games.map((g) => `<a href="${esc(seo.baseUrl.replace(/\/+$/, ''))}/games/${esc(g.slug)}">${esc(g.name)}</a>`).join(' · ') +
-      '</nav>'
+  // Footer links: real addresses on the public site (one page per game), in-page switches elsewhere.
+  const footGames = games
+    .map((g) => `<a href="${seo ? `${esc(trimSlash(seo.baseUrl))}/games/${esc(g.slug)}` : '#'}" data-game="${esc(g.slug)}">${esc(g.name)}</a>`)
+    .join('');
+  const footAccount = signIn
+    ? `<div class="fcol"><b>Account</b><a href="${esc(signIn)}">Sign in</a><a href="${esc(registerUrl)}">Register</a></div>`
+    : '';
+  const footLegal = seo || suggestUrl ? '<div class="fcol"><b>Legal</b><a href="/terms.html">Terms and Conditions</a><a href="/privacy.html">Privacy Policy</a></div>' : '';
+  const suggestBand = suggestUrl
+    ? '<section class="suggest"><div><h2>Know a shop we should check?</h2><p>Send us its link and we will add it to the daily check.</p></div>' +
+      '<button type="button" id="suggest-open">Suggest a shop</button></section>'
+    : '';
+  const suggestDialog = suggestUrl
+    ? `<dialog class="sdlg" id="suggest-dlg" aria-labelledby="sdlg-title"><form id="suggest-form" data-url="${esc(suggestUrl)}" novalidate>` +
+      '<h2 id="sdlg-title">Suggest a shop</h2><p class="sub">Tell us which shop sells trading cards and we will try to add it.</p>' +
+      '<label for="sg-url">Shop address</label><input type="text" id="sg-url" name="url" maxlength="300" placeholder="shop.bg" autocomplete="off" required>' +
+      '<label for="sg-note">Note (optional)</label><textarea id="sg-note" name="note" maxlength="500" placeholder="Which games does it sell?"></textarea>' +
+      '<div class="hp" aria-hidden="true"><label for="sg-web">Website</label><input type="text" id="sg-web" name="website" tabindex="-1" autocomplete="off"></div>' +
+      '<div class="msg" id="sg-msg" role="status"></div>' +
+      '<div class="acts"><button type="button" class="btn ghost" id="sg-cancel">Close</button><button type="submit" class="btn primary" id="sg-send">Send</button></div>' +
+      '</form></dialog>'
     : '';
 
   return `<!doctype html>
@@ -203,20 +235,14 @@ ${robotsMeta}
 <title>${esc(pageTitle)}</title>
 ${head}
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(LOGO_SVG)}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>try { var t = localStorage.getItem('cm-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
 <style>
-  :root {
-    --bg:#f4f1ea; --surface:#fff; --text:#191c22; --muted:#686e7a; --line:#e3ddd1; --accent:#e3350d;
-    --ok:#15803d; --ok-bg:#e6f5eb; --bad:#b42318; --bad-bg:#fcebe8; --warn:#a85a07; --unk-bg:#eeece7;
-    --img:#fff; --hero:#fbf9f4; --hero-text:#191c22; --hero-muted:#686e7a; --hero-line:rgba(21,25,34,.14); --hero-ok:#15803d; --hero-new:#b45309; --hero-hover:rgba(21,25,34,.07); --logo-edge:#fff;
-    --shadow:0 1px 2px rgba(21,25,34,.05), 0 6px 20px rgba(21,25,34,.06);
-    --shadow-hover:0 2px 4px rgba(21,25,34,.06), 0 14px 32px rgba(21,25,34,.12);
-    --holo:linear-gradient(90deg,#e3350d,#f5b301 30%,#2bb7a8 60%,#6a5cff 85%,#e3350d);
-  }
-  @media (prefers-color-scheme: dark) { :root {
-    --bg:#0f1217; --surface:#181c24; --text:#e9ebef; --muted:#959cab; --line:#29303b; --accent:#ff5a36;
-    --ok:#4ade80; --ok-bg:rgba(74,222,128,.12); --bad:#f87171; --bad-bg:rgba(248,113,113,.12); --warn:#fbbf24; --unk-bg:rgba(255,255,255,.07);
-    --img:#f4f3f0; --hero:#0a0c10; --hero-text:#f4f1ea; --hero-muted:#a3a9b6; --hero-line:rgba(255,255,255,.12); --hero-ok:#4ade80; --hero-new:#ffb340; --hero-hover:rgba(255,255,255,.12); --shadow:0 1px 2px rgba(0,0,0,.3); --shadow-hover:0 12px 30px rgba(0,0,0,.45);
-  } }
+  :root { ${LIGHT_VARS} --holo:linear-gradient(90deg,#e3350d,#f5b301 30%,#2bb7a8 60%,#6a5cff 85%,#e3350d); color-scheme:light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) { ${DARK_VARS} color-scheme:dark; } }
+  :root[data-theme=dark] { ${DARK_VARS} color-scheme:dark; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
   .wrap { max-width:1240px; margin:0 auto; padding:0 16px; }
@@ -236,27 +262,7 @@ ${head}
   @media (max-width:1400px) { .gamenav button { padding:20px 9px; font-size:.88rem; } .account:not(.reg) span { display:none; } .account:not(.reg) { padding:8px; } }
   @media (max-width:480px) { .account:not(.reg) { display:none; } .account.reg { padding:7px 12px; margin-left:0; } }
 
-  /* game banners */
   .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
-  .banners { position:relative; margin:18px 0 6px; border-radius:16px; overflow:hidden; box-shadow:var(--shadow); }
-  .track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; scroll-behavior:smooth; }
-  .track::-webkit-scrollbar { display:none; }
-  .slide { flex:0 0 100%; scroll-snap-align:start; position:relative; overflow:hidden; text-align:center; border:0; padding:56px 64px; min-height:300px; color:#fff; cursor:pointer; font:inherit; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:linear-gradient(135deg,var(--a),var(--b)); }
-  .slide:focus-visible { outline:3px solid #fff; outline-offset:-6px; }
-  .slide > * { position:relative; z-index:1; }
-  .slide > .art { position:absolute; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
-  .s-name { font-size:2.6rem; font-weight:800; letter-spacing:-.02em; line-height:1.05; text-transform:uppercase; text-shadow:0 3px 14px rgba(0,0,0,.4); }
-  .s-meta { font-size:1.05rem; opacity:.95; text-shadow:0 1px 6px rgba(0,0,0,.4); }
-  .s-go { margin-top:10px; padding:10px 30px; border:2px solid #fff; border-radius:6px; font-size:.95rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:rgba(0,0,0,.18); transition:background .15s; }
-  .slide:hover .s-go { background:#fff; color:#111; text-shadow:none; }
-  .cnav { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:42px; height:42px; border-radius:50%; border:0; background:rgba(0,0,0,.35); color:#fff; font-size:1.6rem; line-height:1; cursor:pointer; }
-  .cnav:hover { background:rgba(0,0,0,.6); }
-  .cnav.prev { left:12px; } .cnav.next { right:12px; }
-  .dots { position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:8px; z-index:3; }
-  .dots button { width:9px; height:9px; padding:0; border-radius:50%; border:0; background:rgba(255,255,255,.5); cursor:pointer; }
-  .dots button.on { background:#fff; }
-  @media (hover:none) { .cnav { display:none; } }
-  @media (max-width:860px) { .slide { padding:40px 20px 44px; min-height:220px; } .s-name { font-size:1.8rem; } }
   #results { scroll-margin-top:76px; }
 
   /* shops */
@@ -269,7 +275,7 @@ ${head}
   .bar .bname { font-size:1.2rem; }
   .gamenav { display:flex; gap:2px; margin-left:18px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
   .gamenav::-webkit-scrollbar { display:none; }
-  .gamenav button, .drawer .glist button { font:inherit; cursor:pointer; background:none; border:0; color:inherit; }
+  .gamenav button { font:inherit; cursor:pointer; background:none; border:0; color:inherit; }
   .gamenav button { position:relative; padding:20px 12px; font-size:.92rem; font-weight:600; color:var(--hero-muted); white-space:nowrap; }
   .gamenav button:hover { color:var(--hero-text); }
   .gamenav button.active { color:var(--hero-text); }
@@ -287,44 +293,20 @@ ${head}
   .topsearch input { height:36px; border-radius:999px; background:var(--hero-hover); border-color:var(--hero-line); color:var(--hero-text); }
   .topsearch input::placeholder { color:var(--hero-muted); }
   .topsearch svg { stroke:var(--hero-muted); }
-  .burger { display:none; }
   .fpanel { position:absolute; top:100%; right:0; left:0; }
   .fpanel .wrap { display:flex; justify-content:flex-end; }
-  .filterbar { position:sticky; top:var(--tbh,62px); z-index:25; background:var(--bg); padding:12px 0; margin-top:6px; display:flex; align-items:center; gap:12px; }
-  .filterbar .fbtn { margin-left:0; color:var(--text); background:var(--surface); border-color:var(--line); box-shadow:var(--shadow); height:42px; padding:0 20px 0 16px; }
-  .filterbar .fbtn span.t { display:inline; }
-  .filterbar .fpanel { top:calc(100% - 4px); }
-  .filterbar .fpanel .wrap { padding:0; justify-content:flex-start; max-width:none; }
 
   .fpanel .controls { margin:8px 0 0; width:min(560px,100%); flex-direction:column; align-items:stretch; padding:16px; border-radius:14px; box-shadow:var(--shadow-hover); color:var(--text); }
   .fpanel .row { display:flex; gap:8px; flex-wrap:wrap; }
   .fpanel .row select { flex:1; min-width:0; }
   .fpanel .actions { display:flex; gap:8px; align-items:center; }
   .fpanel .actions .sub { margin-left:auto; }
-  .scrim { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.5); }
-  .drawer { position:fixed; top:0; bottom:0; left:0; z-index:50; width:min(320px,86vw); background:var(--surface); color:var(--text); transform:translateX(-102%); transition:transform .2s; overflow-y:auto; box-shadow:var(--shadow-hover); }
-  .drawer.open { transform:none; }
-  .drawer .dtop { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
-  .drawer .dtop b { font-size:1rem; }
-  .drawer .dtop .iconbtn { color:var(--text); background:none; border-color:var(--line); }
-  .drawer h3 { margin:18px 20px 6px; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .drawer .glist button { display:flex; width:100%; justify-content:space-between; align-items:center; text-align:left; padding:14px 20px; font-size:1rem; font-weight:600; border-left:4px solid transparent; }
-  .drawer .glist button small { color:var(--muted); font-weight:500; }
-  .drawer .glist button.active { border-left-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
   @media (max-width:860px) {
-    .burger { display:inline-flex; } .gamenav { display:none; }
     .search.topsearch, .search.topsearch:focus-within { flex:1; width:auto; } .gamenav + .fbtn { margin-left:0; }
     .bar { gap:10px; } .bar .bname { font-size:1.05rem; } .gamenav + .fbtn { margin-left:auto; }
   }
-  @media (min-width:861px) { .drawer, .scrim { display:none; } }
   @media (max-width:560px) { .bar .brand .bname { display:none; } }
   @media (max-width:480px) { .fbtn span.t { display:none; } .fbtn { padding:0 10px; } .bar .brand .bname { font-size:.98rem; } }
-  details.shopsbox { margin:18px 0 0; }
-  details.shopsbox > summary { cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:650; color:var(--muted); }
-  details.shopsbox > summary::-webkit-details-marker { display:none; }
-  details.shopsbox > summary::before { content:"▸"; font-size:.7rem; transition:transform .15s; }
-  details.shopsbox[open] > summary::before { transform:rotate(90deg); }
-  details.shopsbox .shops { margin-top:10px; }
   .shops { display:flex; gap:8px; flex-wrap:wrap; }
   .chip { font:inherit; color:inherit; text-align:left; cursor:pointer; display:flex; gap:9px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px 8px 10px; font-size:.85rem; box-shadow:var(--shadow); transition:border-color .15s; max-width:100%; }
   .chip:hover { border-color:var(--muted); }
@@ -463,69 +445,216 @@ ${head}
   .cmp-open { display:inline-block; padding:7px 14px; border:1px solid var(--line); border-radius:999px; color:var(--text); font-size:.85rem; font-weight:600; text-decoration:none; }
   .cmp-open:hover { border-color:var(--shop); color:var(--shop); }
   @media (max-width:560px) { .cmp th[scope=row], .cmp-corner { width:92px; } .cmp th, .cmp td { padding:10px; } }
+
+  /* ---- catalog layout (redesign) ---- */
+  body { font:15px/1.5 Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .wrap { max-width:1280px; padding:0 32px; }
+  a { color:var(--accent-t); }
+  .bname span { color:var(--accent-t); }
+  .bar { height:80px; gap:18px; }
+  .bar .brand svg { width:38px; height:38px; }
+  .bar .bname { font-size:1.3rem; }
+  .search.topsearch, .search.topsearch:focus-within { flex:1; width:auto; max-width:620px; margin:0 auto; }
+  .topsearch input { height:50px; border-radius:999px; background:var(--field); border-color:var(--field-line); padding-left:46px; font-size:1rem; }
+  .topsearch svg { left:18px; width:20px; height:20px; }
+  .iconbtn { width:44px; height:44px; flex:none; background:none; }
+  .iconbtn .moon { display:none; }
+  :root[data-theme=dark] .iconbtn .moon { display:block; } :root[data-theme=dark] .iconbtn .sun { display:none; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) .iconbtn .moon { display:block; } :root:not([data-theme=light]) .iconbtn .sun { display:none; } }
+  .account { height:44px; padding:0 14px; border:0; background:none; font-size:.95rem; font-weight:700; flex:none; }
+  .account:hover { background:var(--hero-hover); }
+  .account.reg { margin-left:0; padding:0 20px; background:var(--accent); color:#fff; }
+  @media (min-width:701px) { .account:not(.reg) span { display:inline; } .account:not(.reg) { padding:0 14px; } }
+
+  .intro { display:flex; align-items:center; justify-content:space-between; gap:40px; flex-wrap:wrap; padding:44px 0 32px; }
+  .intro-text { flex:1 1 520px; min-width:0; }
+  .headline { margin:0; font-weight:800; font-size:clamp(2rem, 4.2vw, 2.9rem); line-height:1.08; letter-spacing:-.035em; }
+  .lead { margin:14px 0 0; max-width:600px; font-size:1.1rem; color:var(--muted); }
+  .today { flex:0 1 380px; min-width:260px; padding:22px 24px; border-radius:18px; background:var(--surface); border:1px solid var(--line); }
+  .eyebrow { font-size:.8rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .tstats { margin-top:14px; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
+  .tstats b { display:block; font-weight:800; font-size:1.75rem; letter-spacing:-.02em; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .tstats span { font-size:.8rem; color:var(--muted); }
+  .tstats .s-ok b { color:var(--hero-ok); } .tstats .s-new b { color:var(--hero-new); }
+  .today .sub { margin-top:12px; }
+
+  .gamestrip { display:flex; align-items:center; gap:10px; padding:14px 18px; background:var(--surface); border:1px solid var(--line); border-radius:18px; }
+  .glabel { flex:none; font-size:.88rem; font-weight:700; color:var(--muted); margin-right:4px; }
+  .gamenav { display:flex; flex:1; min-width:0; margin:0; gap:10px; overflow-x:auto; }
+  .gamenav button { flex:none; display:inline-flex; align-items:center; gap:10px; height:46px; padding:0 20px 0 10px; border-radius:999px; border:2px solid var(--field-line); background:var(--surface); color:var(--text); font-size:.95rem; font-weight:700; }
+  .gamenav button:hover { border-color:var(--muted); }
+  .gamenav button.active { background:var(--inv); color:var(--inv-t); border-color:var(--inv); }
+  .gamenav button.active::after { display:none; }
+  .gdot { width:26px; height:26px; border-radius:50%; flex:none; }
+
+  .layout { display:flex; align-items:flex-start; gap:28px; margin-top:28px; }
+  .side { flex:0 0 270px; min-width:0; }
+  .maincol { flex:1; min-width:0; }
+  .side .fbtn { display:none; }
+  .side .fpanel { position:static; }
+  .side .controls { flex-direction:column; align-items:stretch; gap:14px; width:auto; margin:0; padding:22px; border-radius:18px; box-shadow:none; }
+  .side h2 { margin:0; font-size:1.15rem; font-weight:800; }
+  .side .row { flex-direction:column; }
+  .side select { width:100%; height:46px; border-radius:12px; }
+  .side .toggle { display:flex; }
+  .side .toggle span { width:100%; height:46px; border-radius:12px; }
+  .side .actions .btn { flex:1; height:46px; border-radius:12px; }
+  @media (min-width:901px) { .side .fpanel[hidden] { display:block !important; } }
+  @media (max-width:900px) {
+    .layout { flex-direction:column; gap:14px; }
+    .side { flex:none; width:100%; }
+    .side .fbtn { display:inline-flex; height:46px; padding:0 20px 0 16px; margin:0; color:var(--text); background:var(--surface); border-color:var(--line); }
+    .side .fbtn span.t { display:inline; }
+    .side .fpanel { margin-top:10px; }
+  }
+  .reshead { display:flex; align-items:baseline; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .reshead h2 { margin:0; font-size:1.75rem; font-weight:800; letter-spacing:-.025em; }
+  #count { margin:0; }
+  .group { margin:28px 0 14px; border-radius:14px; box-shadow:none; }
+  #results > .group:first-child { margin-top:18px; }
+  .grid { grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:18px; }
+  @media (max-width:520px) { .grid { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; } }
+  .card { border-radius:18px; box-shadow:none; }
+  .body { padding:14px 16px 16px; }
+  .title { font-size:1rem; font-weight:700; }
+  .price { font-size:1.35rem; }
+  .open { margin-top:10px; height:42px; display:flex; align-items:center; justify-content:center; border-radius:12px; background:var(--accent); color:#fff; font-weight:700; font-size:.9rem; }
+  .flag { border-radius:999px; background:var(--inv); color:var(--inv-t); box-shadow:none; }
+  .pic .none svg { width:38%; max-width:78px; }
+  .pic .none { color:var(--muted); }
+
+  .sec { margin-top:56px; }
+  .sec h2 { margin:0; font-size:2.1rem; font-weight:800; letter-spacing:-.03em; }
+  .sec .shops { margin-top:16px; }
+  .chip { border-radius:12px; box-shadow:none; }
+  .steps { margin-top:28px; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:18px; }
+  .step { padding:28px; border-radius:18px; background:var(--surface); border:1px solid var(--line); }
+  .step .n { width:44px; height:44px; border-radius:12px; background:var(--badge-bg); color:var(--badge-t); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.25rem; }
+  .step h3 { margin:18px 0 0; font-size:1.25rem; font-weight:700; }
+  .step p { margin:8px 0 0; color:var(--muted); font-size:1rem; line-height:1.55; }
+  .suggest { margin-top:56px; padding:40px 44px; border-radius:24px; background:linear-gradient(120deg, #D92F08, #F08A1B); display:flex; align-items:center; justify-content:space-between; gap:28px; flex-wrap:wrap; color:#fff; }
+  .suggest h2 { margin:0; font-size:2rem; font-weight:800; letter-spacing:-.03em; line-height:1.1; }
+  .suggest p { margin:10px 0 0; font-size:1.05rem; }
+  .suggest button { height:52px; padding:0 28px; border:0; border-radius:13px; background:#10131C; color:#fff; font:inherit; font-weight:700; font-size:1rem; cursor:pointer; }
+  .suggest button:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+  footer.sitefoot { margin:64px 0 0; padding:0; text-align:left; background:var(--surface); border-top:1px solid var(--line); }
+  .footin { display:flex; flex-wrap:wrap; gap:40px; justify-content:space-between; padding-top:44px; padding-bottom:28px; }
+  .footin .about { flex:1 1 340px; min-width:0; }
+  .footin .about p { margin:12px 0 0; max-width:420px; font-size:.9rem; line-height:1.6; color:var(--muted); }
+  .footin .bname { font-size:1.3rem; font-weight:800; letter-spacing:-.03em; }
+  .fcols { display:flex; gap:56px; flex-wrap:wrap; }
+  .fcol { display:flex; flex-direction:column; gap:10px; font-size:.95rem; }
+  .fcol b { font-weight:800; }
+  .fcol a { color:var(--muted); text-decoration:none; }
+  .fcol a:hover { color:var(--accent-t); }
+  .copy { padding-bottom:28px; font-size:.82rem; color:var(--muted); }
+  dialog.sdlg { border:1px solid var(--line); border-radius:20px; padding:28px; width:min(480px, calc(100% - 32px)); background:var(--surface); color:var(--text); }
+  dialog.sdlg::backdrop { background:rgba(0,0,0,.55); }
+  .sdlg h2 { margin:0 0 6px; font-size:1.4rem; font-weight:800; }
+  .sdlg label { display:block; margin-top:16px; font-weight:600; font-size:.9rem; }
+  .sdlg input[type=text], .sdlg textarea { display:block; width:100%; margin-top:6px; font:inherit; color:inherit; background:var(--field); border:1px solid var(--field-line); border-radius:12px; padding:11px 12px; }
+  .sdlg textarea { min-height:84px; resize:vertical; }
+  .sdlg .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  .sdlg .acts { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
+  .sdlg .msg { margin-top:12px; font-size:.9rem; min-height:1.2em; }
+  .sdlg .msg.ok { color:var(--ok); } .sdlg .msg.err { color:var(--bad); }
+  @media (max-width:800px) { .steps { grid-template-columns:1fr; } .sec h2 { font-size:1.7rem; } }
+  @media (max-width:700px) {
+    .wrap { padding:0 16px; }
+    .bar { height:64px; gap:10px; }
+    .topsearch input { height:44px; }
+    .intro { padding:28px 0 22px; gap:22px; }
+    .today { flex:1 1 100%; }
+    .gamestrip { padding:10px 12px; margin:0 -4px; }
+    .glabel { display:none; }
+    .suggest { padding:28px 22px; } .suggest h2 { font-size:1.6rem; }
+    .fcols { gap:32px; }
+  }
 </style>
 </head>
 <body>
 <div class="topbar">
   <div class="wrap bar">
-    <button type="button" class="iconbtn burger" id="burger" aria-label="Games menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="brand">${LOGO_SVG}<b class="bname">Collectible<span>Market</span></b></div>
     <div class="search topsearch">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" id="q" placeholder="Search…" aria-label="Search products">
+      <input type="search" id="q" placeholder="Search in all shops…" aria-label="Search products">
     </div>
-    <nav class="gamenav" id="games" aria-label="Games"></nav>
+    <button type="button" class="iconbtn" id="themebtn" aria-label="Switch between light and dark" title="Light / dark">
+      <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+    </button>
     ${accountLink}
   </div>
 </div>
-<div class="scrim" id="scrim" hidden></div>
-<aside class="drawer" id="drawer" aria-label="Games menu">
-  <div class="dtop"><button type="button" class="iconbtn" id="dclose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button><b>Collectible<span style="color:var(--accent)">Market</span></b></div>
-  <h3>Games</h3>
-  <div class="glist" id="gdrawer"></div>
-</aside>
 <main class="wrap" id="list-view">
   <h1 class="sr">${esc(h1Text)}</h1>
-  <section class="banners" id="banners" aria-label="Games" hidden>
-    <button type="button" class="cnav prev" id="bprev" aria-label="Previous">‹</button>
-    <div class="track" id="btrack"></div>
-    <button type="button" class="cnav next" id="bnext" aria-label="Next">›</button>
-    <div class="dots" id="bdots"></div>
+  <section class="intro">
+    <div class="intro-text">
+      <p class="headline">Find it in stock. Pay the lowest price.</p>
+      <p class="lead">Trading card products from Bulgarian online shops, checked every day and compared in one place.</p>
+    </div>
+    <div class="today">
+      <div class="eyebrow">Latest check</div>
+      <div class="tstats">
+        <div><b id="s-total">0</b><span>products</span></div>
+        <div class="s-ok"><b id="s-stock">0</b><span>in stock</span></div>
+        <div class="s-new"><b id="s-new">0</b><span>new</span></div>
+      </div>
+      <div class="sub">Checked ${esc(when)} (Sofia time)</div>
+    </div>
   </section>
 
-  <div class="filterbar" id="filterbar">
-  <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
-  <div class="fpanel" id="fpanel" hidden><div class="wrap">
-  <form class="controls" id="filters" autocomplete="off">
-    <div class="row">
-      <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
-      <select id="sort" aria-label="Sort">
-        <option value="shop">Group by shop, in stock first</option>
-        <option value="price-asc">Price low → high</option>
-        <option value="price-desc">Price high → low</option>
-        <option value="name">Name</option>
-      </select>
+  <div class="gamestrip"><span class="glabel">Game</span><nav class="gamenav" id="games" aria-label="Games"></nav></div>
+
+  <div class="layout">
+    <aside class="side" id="filterbar" aria-label="Filters">
+      <button type="button" class="fbtn" id="fbtn" aria-expanded="false" aria-controls="fpanel"><svg viewBox="0 0 24 24"><path d="M4 5h16l-6 8v5l-4 2v-7z"/></svg><span class="t">Filter</span><b id="fcount"></b></button>
+      <div class="fpanel" id="fpanel" hidden>
+      <form class="controls" id="filters" autocomplete="off">
+        <h2>Filters</h2>
+        <div class="row">
+          <select id="shop" aria-label="Shop"><option value="">All shops</option></select>
+          <select id="sort" aria-label="Sort">
+            <option value="shop">Group by shop, in stock first</option>
+            <option value="price-asc">Price low → high</option>
+            <option value="price-desc">Price high → low</option>
+            <option value="name">Name</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="toggle"><input type="checkbox" id="instock"><span>In stock only</span></label>
+          <label class="toggle"><input type="checkbox" id="onlynew"><span>New only</span></label>
+        </div>
+        <div class="actions">
+          <button type="submit" class="btn go">Filter</button>
+          <button type="reset" class="btn reset" id="reset">Reset</button>
+        </div>
+      </form>
+      </div>
+    </aside>
+    <div class="maincol">
+      <div class="reshead"><h2 id="res-title">All products</h2><span class="sub" id="count"></span></div>
+      <div id="results"></div>
     </div>
-    <div class="row">
-      <label class="toggle"><input type="checkbox" id="instock"><span>In stock</span></label>
-      <label class="toggle"><input type="checkbox" id="onlynew"><span>New</span></label>
-    </div>
-    <div class="actions">
-      <button type="submit" class="btn go">Filter</button>
-      <button type="reset" class="btn reset" id="reset">Reset</button>
-      <span class="sub" id="count"></span>
-    </div>
-  </form>
-  </div></div>
   </div>
 
-  <details class="shopsbox" id="shopsbox"><summary id="shops-sum">Shops</summary><div class="shops" id="shops"></div></details>
+  <section class="sec">
+    <div class="eyebrow" id="shops-sum">Shops we check</div>
+    <div class="shops" id="shops"></div>
+  </section>
 
-  <div id="results"></div>
+  <section class="sec">
+    <h2>How it works</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3>We check the shops</h3><p>Every day our checker reads the product lists of Bulgarian online shops for each game.</p></div>
+      <div class="step"><div class="n">2</div><h3>You compare</h3><p>See prices, stock and what is new in one list. Filter by shop, game or availability.</p></div>
+      <div class="step"><div class="n">3</div><h3>You buy on the shop</h3><p>Open the product in the shop you prefer. We never take your order or your payment.</p></div>
+    </div>
+  </section>
 
+  ${suggestBand}
   ${crawlList}
-  ${gameLinks}
-  <footer class="sub">Search-only tracker: prices and stock come from each shop's first results page. Buy on the shop's own site.</footer>
 </main>
 
 <main class="wrap" id="compare-view" hidden>
@@ -535,8 +664,20 @@ ${head}
     <span class="count" id="compare-count"></span>
   </div>
   <div id="compare-body"></div>
-  <footer class="sub">Search-only tracker: prices and stock come from each shop's first results page. Buy on the shop's own site.</footer>
 </main>
+
+<footer class="sitefoot">
+  <div class="wrap footin">
+    <div class="about"><b class="bname">Collectible<span>Market</span></b><p>A search-only tracker. Prices and stock come from each shop's first results page. Buy on the shop's own website.</p></div>
+    <nav class="fcols" aria-label="Footer">
+      <div class="fcol" id="foot-games"><b>Games</b>${footGames}</div>
+      ${footAccount}
+      ${footLegal}
+    </nav>
+  </div>
+  <div class="wrap copy">© CollectibleMarket. All trademarks belong to their owners.</div>
+</footer>
+${suggestDialog}
 
 <div class="cmpbar" id="cmpbar" hidden>
   <div class="thumbs" id="cmp-thumbs"></div>
@@ -566,16 +707,13 @@ ${head}
     var i = shopNames.indexOf(name);
     return palette[(i < 0 ? shopNames.length : i) % palette.length];
   }
-  // Poké Ball placeholder for products without a (loadable) image
-  var POKEBALL = '<svg viewBox="0 0 64 64" aria-hidden="true">' +
-    '<path d="M4 32a28 28 0 0 1 56 0Z" fill="#e3350d"/><path d="M4 32a28 28 0 0 0 56 0Z" fill="#fff"/>' +
-    '<circle cx="32" cy="32" r="28" fill="none" stroke="#1f2430" stroke-width="4"/>' +
-    '<path d="M4 32h56" stroke="#1f2430" stroke-width="4"/>' +
-    '<circle cx="32" cy="32" r="9" fill="#fff" stroke="#1f2430" stroke-width="4"/>' +
-    '<circle cx="32" cy="32" r="3.5" fill="none" stroke="#c9ced6" stroke-width="2"/></svg>';
+  // neutral card placeholder for products without a (loadable) image
+  var NOIMG = '<svg viewBox="0 0 86 120" aria-hidden="true"><rect x="3" y="3" width="80" height="114" rx="10" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="3"/>' +
+    '<rect x="14" y="14" width="58" height="50" rx="6" fill="currentColor" fill-opacity=".14"/><rect x="14" y="76" width="44" height="6" rx="3" fill="currentColor" fill-opacity=".3"/>' +
+    '<rect x="14" y="90" width="30" height="6" rx="3" fill="currentColor" fill-opacity=".2"/></svg>';
   function noImage() {
     var s = el('span', 'none');
-    s.innerHTML = POKEBALL;
+    s.innerHTML = NOIMG;
     s.appendChild(el('span', '', 'No image'));
     return s;
   }
@@ -597,139 +735,37 @@ ${head}
     for (var i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
     return ['hsl(' + h + ',60%,32%)', 'hsl(' + ((h + 50) % 360) + ',65%,42%)'];
   }
-  var EMB = {
-    flame: '<path d="M30 4C38 18 52 26 50 42C48 54 38 58 30 58C22 58 12 54 10 42C8 30 20 24 22 12C26 18 28 12 30 4Z"/>',
-    drop: '<path d="M30 4C40 20 52 32 50 44C48 54 40 58 30 58C20 58 12 54 10 44C8 32 20 20 30 4Z"/>',
-    leaf: '<path d="M8 52C8 24 26 8 54 6C54 34 40 54 8 52Z"/>',
-    bolt: '<path d="M34 2L12 34H28L22 58L48 24H32L34 2Z"/>',
-    sail: '<path d="M28 4L28 48L6 48C8 28 16 12 28 4ZM33 10C43 20 49 34 51 48L33 48Z"/><rect x="4" y="52" width="52" height="5" rx="2.5"/>',
-    star: '<path d="M30 2L36 24L58 30L36 36L30 58L24 36L2 30L24 24Z"/>',
-    wave: '<path d="M2 36C10 24 18 24 26 36C34 48 42 48 50 36L58 40L58 54L2 54Z"/>',
-    pyramid: '<path d="M30 4L56 54H4Z"/><circle cx="30" cy="36" r="7" fill="#0006"/>',
-    ring: '<circle cx="30" cy="30" r="24" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="30" cy="30" r="9"/>',
-    crystal: '<path d="M30 2L50 22L30 58L10 22Z"/>',
-    sun: '<circle cx="30" cy="30" r="13"/><path d="M30 0V10M30 50V60M0 30H10M50 30H60M9 9L16 16M44 44L51 51M51 9L44 16M16 44L9 51" stroke="currentColor" stroke-width="4" fill="none"/>',
-    mtn: '<path d="M2 54L22 14L34 34L42 22L58 54Z"/>'
-  };
-  var ARTSETS = {
-    pokemon: ['flame', 'drop', 'leaf', 'bolt'],
-    onepiece: ['sail', 'star', 'wave', 'sun'],
-    yugioh: ['pyramid', 'ring', 'crystal', 'star'],
-    mtg: ['mtn', 'flame', 'sun', 'crystal']
-  };
-  function artCard(x, y, r, k) {
-    return '<g transform="translate(' + x + ' ' + y + ') rotate(' + r + ')"><rect x="-58" y="-82" width="116" height="164" rx="12" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.6)" stroke-width="2.5"/><rect x="-48" y="-72" width="96" height="144" rx="8" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/><g transform="translate(-30 -30)" fill="#fff" color="#fff" opacity=".92">' + (EMB[k] || EMB.star) + '</g></g>';
-  }
-  function artFor(slug) {
-    var set = ARTSETS[slug] || ['star', 'crystal', 'ring', 'sun'];
-    var sp = '';
-    for (var i = 0; i < 26; i++) {
-      var sx = (i * 197 + 61) % 1200, sy = (i * 83 + 17) % 300, sr = 1.5 + (i % 4);
-      sp += '<circle cx="' + sx + '" cy="' + sy + '" r="' + sr + '" fill="#fff" opacity="' + (0.2 + (i % 5) * 0.1) + '"/>';
-    }
-    return '<svg viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
-      '<circle cx="180" cy="60" r="190" fill="#fff" opacity=".08"/><circle cx="1040" cy="270" r="230" fill="#000" opacity=".12"/>' +
-      '<circle cx="600" cy="150" r="260" fill="#fff" opacity=".06"/>' + sp +
-      '<g opacity=".95">' + artCard(150, 165, -16, set[0]) + artCard(275, 150, -4, set[1]) + artCard(925, 150, 5, set[2]) + artCard(1050, 165, 17, set[3]) + '</g>' +
-      '<defs><radialGradient id="gl' + slug + '"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs><ellipse cx="600" cy="150" rx="380" ry="150" fill="url(#gl' + slug + ')"/></svg>';
-  }
-  function renderBanners() {
-    var box = $('banners');
-    var track = $('btrack');
-    track.textContent = '';
-    if (games.length < 2) { box.hidden = true; return; }
-    box.hidden = false;
-    games.forEach(function (g) {
-      var list = products.filter(function (p) { return p.game === g.slug; });
-      var inStock = list.filter(function (p) { return p.inStock === true; }).length;
-      var b = el('button', 'slide');
-      b.type = 'button';
-      b.setAttribute('data-game', g.slug);
-      var t = theme(g.slug);
-      b.style.setProperty('--a', t[0]);
-      b.style.setProperty('--b', t[1]);
-      var art = el('span', 'art');
-      art.innerHTML = artFor(g.slug);
-      b.appendChild(art);
-      b.appendChild(el('span', 's-name', g.name));
-      b.appendChild(el('span', 's-meta', list.length + ' products \u00b7 ' + inStock + ' in stock'));
-      b.appendChild(el('span', 's-go', 'Shop'));
-      b.addEventListener('click', function () {
-        setGame(g.slug);
-        $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-      track.appendChild(b);
-    });
-    var dots = $('bdots');
-    dots.textContent = '';
-    games.forEach(function (g, i) {
-      var d = el('button', '');
-      d.type = 'button';
-      d.setAttribute('aria-label', g.name);
-      d.addEventListener('click', function () { track.scrollTo({ left: i * track.clientWidth }); });
-      dots.appendChild(d);
-    });
-    function updateDots() {
-      var i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
-      var ds = dots.children;
-      for (var k = 0; k < ds.length; k++) ds[k].classList.toggle('on', k === i);
-    }
-    track.addEventListener('scroll', updateDots);
-    updateDots();
-    function step(dir) {
-      var w = track.clientWidth;
-      var atEnd = track.scrollLeft + w >= track.scrollWidth - 4;
-      if (dir > 0 && atEnd) track.scrollTo({ left: 0 });
-      else if (dir < 0 && track.scrollLeft <= 2) track.scrollTo({ left: track.scrollWidth });
-      else track.scrollBy({ left: dir * w });
-    }
-    $('bprev').onclick = function () { step(-1); };
-    $('bnext').onclick = function () { step(1); };
-    var paused = false;
-    ['mouseenter', 'focusin', 'touchstart'].forEach(function (ev) { box.addEventListener(ev, function () { paused = true; }); });
-    ['mouseleave', 'focusout'].forEach(function (ev) { box.addEventListener(ev, function () { paused = false; }); });
-    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setInterval(function () { if (!paused && !document.hidden) step(1); }, 5000);
-    }
-  }
-  function markBanners() {
-    var slides = document.querySelectorAll('#btrack .slide');
-    for (var i = 0; i < slides.length; i++) {
-      slides[i].classList.toggle('on', slides[i].getAttribute('data-game') === game);
-    }
-  }
-  function setGame(slug) { game = slug; renderTabs(); markBanners(); buildShops(); render(); closeDrawer(); }
+  function setGame(slug) { game = slug; renderTabs(); buildShops(); render(); }
   function renderTabs() {
-    ['games', 'gdrawer'].forEach(function (id) {
-      var box = $(id);
-      box.textContent = '';
-      [{ slug: '', name: 'All games' }].concat(games).forEach(function (g) {
-        var b = el('button', g.slug === game ? 'active' : '', g.name);
-        b.type = 'button';
-        if (id === 'gdrawer') {
-          var n = products.filter(function (p) { return !g.slug || p.game === g.slug; }).length;
-          b.appendChild(el('small', '', String(n)));
-        }
-        b.addEventListener('click', function () { setGame(g.slug); });
-        box.appendChild(b);
-      });
+    var box = $('games');
+    box.textContent = '';
+    [{ slug: '', name: 'All games' }].concat(games).forEach(function (g) {
+      var b = el('button', g.slug === game ? 'active' : '');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(g.slug === game));
+      var dot = el('span', 'gdot');
+      dot.style.background = g.slug ? theme(g.slug)[0] : 'var(--muted)';
+      b.appendChild(dot);
+      b.appendChild(document.createTextNode(g.name));
+      b.addEventListener('click', function () { setGame(g.slug); });
+      box.appendChild(b);
     });
   }
-  function closeDrawer() {
-    $('drawer').classList.remove('open'); $('scrim').hidden = true; $('burger').setAttribute('aria-expanded', 'false');
+  function updateTotals() {
+    var inScope = products.filter(inGame);
+    $('s-total').textContent = inScope.length;
+    $('s-stock').textContent = inScope.filter(function (p) { return p.inStock === true; }).length;
+    $('s-new').textContent = inScope.filter(function (p) { return p.isNew; }).length;
+    var current = games.filter(function (g) { return g.slug === game; })[0];
+    $('res-title').textContent = current ? current.name : 'All products';
   }
   function setPanel(open) {
     $('fpanel').hidden = !open; $('fbtn').setAttribute('aria-expanded', String(open));
   }
-  $('burger').addEventListener('click', function () {
-    $('drawer').classList.add('open'); $('scrim').hidden = false; $('burger').setAttribute('aria-expanded', 'true');
-  });
-  $('dclose').addEventListener('click', closeDrawer);
-  $('scrim').addEventListener('click', closeDrawer);
   $('fbtn').addEventListener('click', function (e) { e.stopPropagation(); setPanel($('fpanel').hidden); });
   $('fpanel').addEventListener('click', function (e) { e.stopPropagation(); });
   document.addEventListener('click', function () { setPanel(false); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDrawer(); setPanel(false); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setPanel(false); });
 
 
   // shop status chips (click to filter) + filter options, for the selected game
@@ -737,7 +773,8 @@ ${head}
     $('shops').textContent = '';
     $('shop').textContent = '';
     var all = el('option', '', 'All shops'); all.value = ''; $('shop').appendChild(all);
-    $('shops-sum').textContent = 'Shops (' + (data.shops.filter(inGame).length + (data.manualShops || []).filter(inGame).length) + ')';
+    updateTotals();
+    $('shops-sum').textContent = 'Shops we check (' + (data.shops.filter(inGame).length + (data.manualShops || []).filter(inGame).length) + ')';
     data.shops.filter(inGame).forEach(function (s) {
       var chip = el('button', 'chip ' + s.status);
       chip.style.setProperty('--shop', shopColor(s.name));
@@ -853,6 +890,7 @@ ${head}
     foot.appendChild(el('span', 'price', priceText(p)));
     foot.appendChild(stockBadge(p));
     body.appendChild(foot);
+    if (link) body.appendChild(el('span', 'open', 'Open in shop \u2197'));
     main.appendChild(body);
     c.appendChild(main);
 
@@ -1109,13 +1147,64 @@ ${head}
   $('q').addEventListener('input', render);
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
-    function setBarH() { var t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--tbh', t.offsetHeight + 'px'); }
-  setBarH(); window.addEventListener('resize', setBarH);
   renderTabs();
-  renderBanners();
   buildShops();
   render();
   route();
+
+  // light / dark: follows the device until the visitor picks one
+  $('themebtn').addEventListener('click', function () {
+    var root = document.documentElement;
+    var now = root.getAttribute('data-theme') ||
+      (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = now === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('cm-theme', next); } catch (e) { /* ignore */ }
+  });
+
+  // footer game links without their own address switch the game in place
+  $('foot-games').addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[data-game]') : null;
+    if (!a || a.getAttribute('href') !== '#') return;
+    e.preventDefault();
+    setGame(a.getAttribute('data-game'));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // "Suggest a shop" form (only on the website)
+  var dlg = $('suggest-dlg');
+  if (dlg && $('suggest-open')) {
+    var form = $('suggest-form');
+    var msg = $('sg-msg');
+    var say = function (cls, text) { msg.className = 'msg ' + cls; msg.textContent = text; };
+    $('suggest-open').addEventListener('click', function () {
+      say('', '');
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+      $('sg-url').focus();
+    });
+    $('sg-cancel').addEventListener('click', function () { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var url = $('sg-url').value.trim();
+      if (!url) { say('err', 'Enter the address of the shop.'); $('sg-url').focus(); return; }
+      $('sg-send').disabled = true;
+      say('', 'Sending…');
+      fetch(form.getAttribute('data-url'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url, note: $('sg-note').value.trim(), website: $('sg-web').value })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+      }).then(function (r) {
+        $('sg-send').disabled = false;
+        if (r.ok) { form.reset(); say('ok', 'Thank you! We received your suggestion.'); return; }
+        say('err', r.status === 429 ? 'Too many attempts. Please try again later.' : (r.body && r.body.error) || 'Could not send. Please try again.');
+      }).catch(function () {
+        $('sg-send').disabled = false;
+        say('err', 'Could not send. Please check your connection and try again.');
+      });
+    });
+  }
 })();
 </script>
 </body>

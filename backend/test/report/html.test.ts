@@ -68,7 +68,7 @@ describe('buildReportHtml', () => {
     expect(buildReportHtml(summary, { appUrl: 'https://x.test/"><script>' })).not.toContain('"><script>');
   });
 
-  it('has a Poké Ball placeholder for products without an image', () => {
+  it('has a neutral placeholder for products without an image', () => {
     expect(html).toContain('function noImage()');
     expect(html).toContain('pic.appendChild(noImage())');
   });
@@ -137,10 +137,22 @@ describe('report menu of games', () => {
     expect(buildReportHtml(base, { signInUrl: 'javascript:alert(1)' })).not.toContain('class="account"');
   });
 
-  it('has a banner carousel with one banner per game', () => {
+  it('has the catalog layout: game buttons, filters, how it works, light and dark themes', () => {
     const html = buildReportHtml(summary);
-    expect(html).toContain('id="btrack"');
-    expect(html).toContain("el('button', 'slide')");
+    expect(html).toContain('id="games"');
+    expect(html).toContain('id="filters"');
+    expect(html).toContain('How it works');
+    expect(html).toContain('id="themebtn"');
+    expect(html).toContain(':root[data-theme=dark]');
+    expect(html).not.toContain('Poké Ball');
+  });
+
+  it('shows the "Suggest a shop" form only when an address for it is given', () => {
+    expect(buildReportHtml(summary)).not.toContain('id="suggest-dlg"');
+    const html = buildReportHtml(summary, { suggestUrl: '/api/suggestions' });
+    expect(html).toContain('id="suggest-open"');
+    expect(html).toContain('data-url="/api/suggestions"');
+    expect(buildReportHtml(summary, { suggestUrl: 'javascript:alert(1)' })).not.toContain('id="suggest-dlg"');
   });
 
   it('is noindex by default and indexable with seo options (canonical, description, structured data, h1)', () => {

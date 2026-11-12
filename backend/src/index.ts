@@ -66,6 +66,7 @@ async function main() {
       siteUser: process.env.SITE_USER || undefined,
       indexable: publicSiteUrl !== undefined,
       siteUrl: publicSiteUrl,
+    notifyEmail: adminEmail || undefined,
     },
     siteUrl: publicSiteUrl,
     mailer: createMailer(mailConfigFromEnv()),
