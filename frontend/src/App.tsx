@@ -19,6 +19,16 @@ export default function App() {
     return q.has('activate') || q.has('reset') || q.has('login') ? 'login' : null;
   });
 
+  /** /app?account = the profile page ("My account"). */
+  const [wantsAccount] = useState(() => new URLSearchParams(window.location.search).has('account'));
+  const goHome = () => window.location.assign('/');
+  const signOut = () => {
+    void api
+      .logout()
+      .catch(() => undefined)
+      .finally(goHome);
+  };
+
   useEffect(() => {
     // The link in the "confirm your new email" message opens the app as /?confirm-email=<token>.
     const token = new URLSearchParams(window.location.search).get('confirm-email');
@@ -42,24 +52,28 @@ export default function App() {
           {flash.text}
         </div>
       )}
-      {user === null && auth ? (
+      {user === null && (auth || wantsAccount) ? (
         <AuthForm
-          initialMode={auth}
+          initialMode={auth ?? 'login'}
           onSignedIn={(u) => {
-            setUser(u);
-            setAuth(null);
+            // After signing in the visitor lands on the home page (or on the profile page they asked for).
+            if (wantsAccount) {
+              setUser(u);
+              setAuth(null);
+            } else {
+              goHome();
+            }
           }}
-          onClose={() => window.location.assign('/')}
+          onClose={goHome}
         />
+      ) : user && wantsAccount ? (
+        <AccountPanel page user={user} onClose={goHome} onUserChange={setUser} onDeleted={goHome} onSignOut={signOut} />
       ) : (
         <Tracker
           user={user}
           onUserChange={setUser}
           onSignIn={(mode) => setAuth(mode)}
-          onSignOut={() => {
-            void api.logout().catch(() => undefined);
-            setUser(null);
-          }}
+          onSignOut={signOut}
           onSessionExpired={() => setUser(null)}
         />
       )}

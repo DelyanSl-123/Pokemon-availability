@@ -1,3 +1,4 @@
+import { Brand } from './Brand';
 import { Req } from './Req';
 import { FormEvent, useState } from 'react';
 import { api, type User } from '../api/client';
@@ -12,8 +13,13 @@ export function AccountPanel({
   onClose,
   onUserChange,
   onDeleted,
+  page,
+  onSignOut,
 }: {
   user: User;
+  /** Show as a page of its own (the profile page) instead of a window over the dashboard. */
+  page?: boolean;
+  onSignOut?: () => void;
   onClose: () => void;
   onUserChange: (user: User) => void;
   onDeleted: () => void;
@@ -93,16 +99,31 @@ export function AccountPanel({
     });
   };
 
-  return (
-    <div className="panel-backdrop" role="dialog" aria-modal="true" aria-label="My account" onClick={onClose}>
-      <div className="panel" onClick={(e) => e.stopPropagation()}>
+  const body = (
+    <>
         <div className="row">
-          <h2>My account</h2>
-          <button type="button" className="link" onClick={onClose}>
-            Close
-          </button>
+          {page ? <h1>My account</h1> : <h2>My account</h2>}
+          <div className="row">
+            {page && isAdmin && (
+              <a className="btnlink" href="/app">
+                Admin page
+              </a>
+            )}
+            {page && onSignOut && (
+              <button type="button" onClick={onSignOut}>
+                Sign out
+              </button>
+            )}
+            {!page && (
+              <button type="button" className="link" onClick={onClose}>
+                Close
+              </button>
+            )}
+          </div>
         </div>
-        <p className="sub">{user.email}</p>
+        <p className="sub">
+          {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
+        </p>
         {error && <div className="banner error">{error}</div>}
         {notice && <div className="banner ok">{notice}</div>}
 
@@ -213,6 +234,26 @@ export function AccountPanel({
             </form>
           </>
         )}
+    </>
+  );
+
+  if (page) {
+    return (
+      <main className="authpage wide">
+        <Brand />
+        <section className="authcard panel-page">{body}</section>
+        <p className="authback">
+          <button type="button" className="link" onClick={onClose}>
+            ← Back to the home page
+          </button>
+        </p>
+      </main>
+    );
+  }
+  return (
+    <div className="panel-backdrop" role="dialog" aria-modal="true" aria-label="My account" onClick={onClose}>
+      <div className="panel" onClick={(e) => e.stopPropagation()}>
+        {body}
       </div>
     </div>
   );

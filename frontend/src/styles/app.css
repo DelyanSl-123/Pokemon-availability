@@ -393,3 +393,222 @@ button.danger {
   color: #e5484d;
   font-weight: 700;
 }
+
+/* ---- CollectibleMarket look (same palette and themes as the home page) ---- */
+:root {
+  --bg: #f3f5f9;
+  --card: #ffffff;
+  --text: #10131c;
+  --muted: #5b6474;
+  --line: #e1e5ec;
+  --accent: #d92f08;
+  --accent-t: #c22a07;
+  --field: #f3f5f9;
+  --field-line: #d5dbe5;
+  --ok: #166534;
+  --bad: #b42318;
+  --warn: #a85a07;
+  color-scheme: light;
+  font-family: Manrope, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0d1016;
+    --card: #161a23;
+    --text: #f1f3f7;
+    --muted: #a3acbb;
+    --line: #262c3a;
+    --accent-t: #ff7a52;
+    --field: #0d1016;
+    --field-line: #2e3545;
+    --ok: #6fe0a0;
+    --bad: #ff9a8f;
+    --warn: #fbbf24;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #0d1016;
+  --card: #161a23;
+  --text: #f1f3f7;
+  --muted: #a3acbb;
+  --line: #262c3a;
+  --accent-t: #ff7a52;
+  --field: #0d1016;
+  --field-line: #2e3545;
+  --ok: #6fe0a0;
+  --bad: #ff9a8f;
+  --warn: #fbbf24;
+  color-scheme: dark;
+}
+body {
+  color: var(--text);
+}
+a {
+  color: var(--accent-t);
+}
+section {
+  border-radius: 18px;
+  padding: 20px;
+}
+h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+h2 {
+  font-weight: 800;
+}
+input,
+select {
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--field);
+  border-color: var(--field-line);
+  padding: 9px 12px;
+}
+input[type='checkbox'] {
+  min-height: 0;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-t);
+  outline-offset: 2px;
+}
+button,
+a.btnlink {
+  min-height: 42px;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-weight: 700;
+}
+a.btnlink {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+button.link {
+  min-height: 0;
+  padding: 4px;
+  color: var(--accent-t);
+  font-weight: 700;
+}
+.req {
+  color: var(--accent-t);
+}
+
+/* sign in, register, forgotten password and the profile page */
+.authpage {
+  max-width: 480px;
+  padding: 6vh 16px 64px;
+}
+.authpage.wide {
+  max-width: 760px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  margin-bottom: 22px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.brand svg {
+  width: 44px;
+  height: 44px;
+}
+.brand b {
+  color: var(--accent-t);
+}
+.authcard {
+  margin-top: 0;
+  padding: 32px;
+  border-radius: 22px;
+  overflow: visible;
+}
+.authcard h1 {
+  font-size: 1.75rem;
+}
+.authcard .lead {
+  margin: 6px 0 18px;
+  font-size: 1rem;
+}
+.authcard form.grid {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 6px;
+}
+.authpage.wide .authcard form.grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.authcard form.grid label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.authcard form.grid > div,
+.authcard form.grid > label.inline,
+.authcard form.grid > ul {
+  grid-column: 1 / -1;
+}
+.authcard form.grid label.inline {
+  font-weight: 500;
+}
+.authcard form.grid button.primary {
+  width: 100%;
+  min-height: 50px;
+  font-size: 1rem;
+}
+.authcard .banner {
+  margin: 0 0 14px;
+  border-radius: 12px;
+}
+.authcard > p.sub {
+  margin-top: 14px;
+  font-size: 0.95rem;
+}
+.authback {
+  text-align: center;
+  margin: 18px 0 0;
+}
+.panel-page h3 {
+  margin: 28px 0 10px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+.panel-page .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.panel-page form.grid button.primary {
+  width: auto;
+  min-height: 44px;
+}
+.panel {
+  border-radius: 20px;
+  padding: 24px;
+}
+@media (max-width: 600px) {
+  .authpage.wide .authcard form.grid {
+    grid-template-columns: 1fr;
+  }
+  .authcard {
+    padding: 22px 18px;
+  }
+}

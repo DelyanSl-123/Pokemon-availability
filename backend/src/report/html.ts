@@ -40,6 +40,8 @@ export interface ReportOptions {
   suggestUrl?: string;
   /** Address that returns the recorded prices of a product (GET ?url=...); adds a "Price history" chart to each card. Site only. */
   historyUrl?: string;
+  /** The signed-in visitor: the header shows a profile icon (and a link to the admin page) instead of Sign in / Register. */
+  account?: { name: string; admin: boolean; profileUrl: string; adminUrl?: string };
   /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
   seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
 }
@@ -136,7 +138,13 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   const signIn = opts.signInUrl && /^(https?:\/\/|\/)/i.test(opts.signInUrl) ? opts.signInUrl : appUrl;
   // The register link opens the same screen in registration mode (?login becomes ?register).
   const registerUrl = /[?&]login\b/.test(signIn) ? signIn.replace(/([?&])login\b/, '$1register') : signIn + (signIn.includes('?') ? '&' : '?') + 'register';
-  const accountLink = signIn
+  const okLink = (u: string | undefined) => (u && /^(https?:\/\/|\/)/i.test(u) ? u : '');
+  const USER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
+  const signedIn = opts.account && okLink(opts.account.profileUrl) ? opts.account : undefined;
+  const accountLink = signedIn
+    ? (signedIn.admin && okLink(signedIn.adminUrl) ? `<a class="account adm" href="${esc(okLink(signedIn.adminUrl))}"><span>Admin</span></a>` : '') +
+      `<a class="account me" href="${esc(signedIn.profileUrl)}" title="My account" aria-label="My account: ${esc(signedIn.name)}">${USER_ICON}<span>${esc(signedIn.name)}</span></a>`
+    : signIn
     ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
       '<span>Sign in</span></a>' +
@@ -210,7 +218,9 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   const footGames = games
     .map((g) => `<a href="${seo ? `${esc(trimSlash(seo.baseUrl))}/games/${esc(g.slug)}` : '#'}" data-game="${esc(g.slug)}">${esc(g.name)}</a>`)
     .join('');
-  const footAccount = signIn
+  const footAccount = signedIn
+    ? `<div class="fcol"><b>Account</b><a href="${esc(signedIn.profileUrl)}">My account</a></div>`
+    : signIn
     ? `<div class="fcol"><b>Account</b><a href="${esc(signIn)}">Sign in</a><a href="${esc(registerUrl)}">Register</a></div>`
     : '';
   const footLegal = seo || suggestUrl ? '<div class="fcol"><b>Legal</b><a href="/terms.html">Terms and Conditions</a><a href="/privacy.html">Privacy Policy</a></div>' : '';
@@ -474,6 +484,16 @@ ${head}
   .account:hover { background:var(--hero-hover); }
   .account.reg { margin-left:0; padding:0 20px; background:var(--accent); color:#fff; }
   @media (min-width:701px) { .account:not(.reg) span { display:inline; } .account:not(.reg) { padding:0 14px; } }
+  .account:not(.reg) { display:inline-flex; }
+  .account.me { border:1px solid var(--hero-line); border-radius:999px; padding:0 16px 0 10px; max-width:220px; }
+  .account.me span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .account.adm span { display:inline; }
+  @media (max-width:700px) {
+    .account:not(.reg):not(.adm) { width:44px; padding:0; justify-content:center; border:1px solid var(--hero-line); border-radius:50%; }
+    .account:not(.reg):not(.adm) span { display:none; }
+    .account.reg { padding:0 14px; }
+    .bar .iconbtn { display:none; }
+  }
 
   .intro { display:flex; align-items:center; justify-content:space-between; gap:40px; flex-wrap:wrap; padding:44px 0 32px; }
   .intro-text { flex:1 1 520px; min-width:0; }

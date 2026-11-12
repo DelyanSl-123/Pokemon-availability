@@ -147,6 +147,14 @@ describe('report menu of games', () => {
     expect(html).not.toContain('Poké Ball');
   });
 
+  it('shows a profile link instead of Sign in / Register for a signed-in visitor', () => {
+    const html = buildReportHtml(summary, { signInUrl: '/app?login', account: { name: 'Ivan', admin: true, profileUrl: '/app?account', adminUrl: '/app' } });
+    expect(html).toContain('class="account me" href="/app?account"');
+    expect(html).toContain('class="account adm" href="/app"');
+    expect(html).not.toContain('class="account reg"');
+    expect(buildReportHtml(summary, { signInUrl: '/app?login' })).toContain('class="account reg"');
+  });
+
   it('adds the price history chart only when an address for it is given', () => {
     expect(buildReportHtml(summary)).not.toContain('id="hist-dlg"');
     expect(buildReportHtml(summary, { historyUrl: '/api/price-history' })).toContain('id="hist-dlg"');
