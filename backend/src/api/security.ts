@@ -135,7 +135,7 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
         return reply.header('WWW-Authenticate', 'Basic realm="Collectible Market (in development)", charset="UTF-8"').status(401).send('Password required');
       }
     }
-    if (req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/resend', '/api/auth/activate', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email'].includes(path) && !logins.allow(req.ip)) {
+    if (req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/resend', '/api/auth/activate', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/suggestions'].includes(path) && !logins.allow(req.ip)) {
       return reply.header('Retry-After', '600').status(429).send({ error: 'Too many sign-in attempts, try again later' });
     }
   });

@@ -68,6 +68,7 @@ async function main() {
       siteUrl: publicSiteUrl,
     },
     siteUrl: publicSiteUrl,
+    notifyEmail: adminEmail || undefined,
     mailer: createMailer(mailConfigFromEnv()),
     captcha: captchaFromEnv(),
     appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,

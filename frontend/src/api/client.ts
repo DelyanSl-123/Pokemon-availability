@@ -95,6 +95,13 @@ export interface RegisterBody {
 }
 
 /** An error response from the API; `status` 401 means the session is missing or expired. */
+export interface ShopSuggestion {
+  id: number;
+  url: string;
+  note: string;
+  createdAt: string;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -157,6 +164,8 @@ export const api = {
     if (q.inStock) params.set('inStock', 'true');
     return request<Product[]>(`/products?${params}`);
   },
+  suggestions: () => request<ShopSuggestion[]>('/suggestions'),
+  deleteSuggestion: (id: number) => request<{ ok: boolean }>(`/suggestions/${id}`, { method: 'DELETE' }),
   runs: () => request<RunSummary[]>('/runs'),
   run: () => request<RunSummary>('/run', { method: 'POST', body: json({}) }),
   settings: () => request<Settings>('/settings'),

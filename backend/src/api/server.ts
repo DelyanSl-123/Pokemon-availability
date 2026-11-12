@@ -39,6 +39,10 @@ import {
   listGames,
   listProducts,
   listRuns,
+  priceHistory,
+  addShopSuggestion,
+  listShopSuggestions,
+  deleteShopSuggestion,
   listShops,
   saveSettings,
   updateGame,
@@ -47,7 +51,7 @@ import {
 import { slugify } from '../shops/games';
 import type { Scheduler } from '../core/scheduler';
 import type { Service } from '../core/service';
-import { buildActivationEmail, buildEmailChangeEmail, buildPasswordResetEmail, type Mailer } from '../mail/mailer';
+import { buildActivationEmail, buildEmailChangeEmail, buildPasswordResetEmail, buildShopSuggestionEmail, type Mailer } from '../mail/mailer';
 import { passwordProblems } from '../auth/password-rules';
 import type { Captcha } from './captcha';
 import { createLockout, registerBotProtection, type SecurityOptions } from './security';
@@ -77,6 +81,8 @@ export interface ServerDeps {
   appUrl: string;
   /** Set when the site is public and may be indexed by search engines (its https address). */
   siteUrl?: string;
+  /** Where to send a note when a visitor suggests a shop (the admin's address). */
+  notifyEmail?: string;
   /** Shops that are only linked, never fetched; listed on the home page. */
   manualShops?: () => ManualShop[];
 }
@@ -89,10 +95,10 @@ declare module 'fastify' {
 
 const SESSION_COOKIE = 'cm_session';
 /** API paths that work without being signed in. */
-const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config']);
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config', '/api/suggestions']);
 
 /** Read-only data that anyone may look at without signing in: the home page of the site. */
-const PUBLIC_GET_PATHS = new Set(['/api/shops', '/api/games', '/api/products', '/api/runs']);
+const PUBLIC_GET_PATHS = new Set(['/api/shops', '/api/games', '/api/products', '/api/runs', '/api/price-history']);
 
 function readCookie(req: FastifyRequest, name: string): string | undefined {
   for (const part of (req.headers.cookie ?? '').split(';')) {
@@ -104,6 +110,27 @@ function readCookie(req: FastifyRequest, name: string): string | undefined {
 
 const PHONE_RE = /^(\+?[0-9][0-9 ()-]{5,19})?$/;
 const PHONE_MESSAGE = 'Enter a valid phone number (digits, spaces, + ( ) -)';
+
+const suggestionSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .max(300)
+    .transform((v) => (/^https?:\/\//i.test(v) ? v : `https://${v}`))
+    .refine(
+      (v) => {
+        try {
+          return /^https?:$/.test(new URL(v).protocol) && new URL(v).hostname.includes('.');
+        } catch {
+          return false;
+        }
+      },
+      { message: 'Enter the address of the shop, for example shop.bg' },
+    ),
+  note: z.string().trim().max(500).optional(),
+  /** Hidden "honeypot" field: people never see it, simple bots fill it in. */
+  website: z.string().max(200).optional(),
+});
 
 const credentialsSchema = z.object({
   email: z.string().trim().email(),
@@ -462,6 +489,12 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return listProducts(deps.db, { shopId: q.shopId, game: q.game, inStockOnly: q.inStock === 'true' });
   });
 
+  // The prices recorded for one product (by its link), one per day: the chart on the home page.
+  app.get('/api/price-history', async (req) => {
+    const q = z.object({ url: z.string().min(1).max(2000) }).parse(req.query);
+    return priceHistory(deps.db, q.url);
+  });
+
   app.get('/api/runs', async () => listRuns(deps.db, 20));
 
   app.post('/api/run', { preHandler: requireAdmin }, async (req, reply) => {
@@ -470,6 +503,30 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
 
   /* ---- settings ---- */
+  /* ---- shops suggested by visitors ---- */
+
+  // Open to everyone (the form is on the public home page); limited per address in the bot protection.
+  app.post('/api/suggestions', async (req, reply) => {
+    const { url, note, website } = suggestionSchema.parse(req.body);
+    if (website) return reply.status(201).send({ ok: true }); // honeypot: pretend it worked
+    addShopSuggestion(deps.db, url, note ?? '');
+    if (deps.notifyEmail) {
+      try {
+        await deps.mailer.send(buildShopSuggestionEmail(deps.notifyEmail, url, note ?? ''));
+      } catch {
+        /* the suggestion is stored; the e-mail is only a convenience */
+      }
+    }
+    return reply.status(201).send({ ok: true });
+  });
+
+  app.get('/api/suggestions', { preHandler: requireAdmin }, async () => listShopSuggestions(deps.db));
+
+  app.delete<{ Params: { id: string } }>('/api/suggestions/:id', { preHandler: requireAdmin }, async (req, reply) => {
+    if (!deleteShopSuggestion(deps.db, Number(req.params.id))) return reply.status(404).send({ error: 'Not found' });
+    return { ok: true };
+  });
+
   app.get('/api/settings', { preHandler: requireAdmin }, async () => getSettings(deps.db, deps.defaults));
 
   app.put('/api/settings', { preHandler: requireAdmin }, async (req) => {
@@ -505,6 +562,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     }
     return buildReportHtml(summary, {
       signInUrl: '/app?login',
+      suggestUrl: '/api/suggestions',
+      historyUrl: '/api/price-history',
       manualShops,
       ...(deps.siteUrl ? { seo: { baseUrl: deps.siteUrl, game } } : {}),
     });

@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { api, ApiError, type Game, type Product, type RunSummary, type Settings, type Shop, type User } from './api/client';
+import { api, ApiError, type Game, type Product, type RunSummary, type Settings, type Shop, type ShopSuggestion, type User } from './api/client';
 import { AccountPanel } from './components/AccountPanel';
 import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
@@ -88,6 +88,8 @@ function Tracker({
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [games, setGames] = useState<Game[]>([]);
+  /** Shops that visitors suggested on the home page (admin only). */
+  const [suggestions, setSuggestions] = useState<ShopSuggestion[]>([]);
   /** The selected tab of the games menu; '' = all games. */
   const [game, setGame] = useState('');
 
@@ -123,7 +125,8 @@ function Tracker({
   const loadAll = useCallback(
     () =>
       guard(async () => {
-        const [s, r, cfg, g] = await Promise.all([api.shops(), api.runs(), isAdmin ? api.settings() : null, api.games()]);
+        const [s, r, cfg, g, sug] = await Promise.all([api.shops(), api.runs(), isAdmin ? api.settings() : null, api.games(), isAdmin ? api.suggestions() : []]);
+        setSuggestions(sug);
         setGames(g);
         setShops(s);
         setRuns(r);
@@ -401,6 +404,69 @@ function Tracker({
           </tbody>
         </table>
       </section>
+
+      {isAdmin && (
+        <section>
+          <h2>Suggested shops</h2>
+          {suggestions.length === 0 ? (
+            <p className="sub">No suggestions yet. Visitors send them with “Suggest a shop” on the home page.</p>
+          ) : (
+            <>
+              <p className="sub">
+                Sent by visitors and not checked for safety. Before opening a link, check it at{' '}
+                <a href="https://www.virustotal.com/gui/home/url" target="_blank" rel="noreferrer">
+                  virustotal.com
+                </a>
+                .
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Shop address</th>
+                    <th>Note</th>
+                    <th>Received</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suggestions.map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ wordBreak: 'break-all' }}>{s.url}</td>
+                      <td>{s.note || '—'}</td>
+                      <td>{fmtDate(s.createdAt.includes('T') ? s.createdAt : `${s.createdAt.replace(' ', 'T')}Z`)}</td>
+                      <td>
+                        <div className="row">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewShopUrl(s.url);
+                              setNotice('The address is filled in the “Add shop” form above. Choose the game and press Add.');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                          >
+                            Use in “Add shop”
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void guard(async () => {
+                                await api.deleteSuggestion(s.id);
+                                setSuggestions(await api.suggestions());
+                              })
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </section>
+      )}
 
       {settings && (
         <section>

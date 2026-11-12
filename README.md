@@ -161,3 +161,15 @@ Without a session the API answers `401`; a regular user calling an admin endpoin
 The home page (`/`), one page per game (`/games/<slug>`) and `/sitemap.xml` are indexable. They carry a Bulgarian title and description, a canonical address, Open Graph tags and schema.org data (products with price and stock). `/app` and `/api` stay closed (`robots.txt`, `noindex`).
 
 Indexing turns on only when `APP_URL` is an `https://` address and `SITE_PASSWORD` is not set. `SEO_INDEX=false` keeps it off. After launch, add the site to Google Search Console and Bing Webmaster Tools, verify the domain and submit `https://collectiblemarket.bg/sitemap.xml`.
+
+## Home page design and "Suggest a shop"
+
+The home page uses the catalog layout: search in the header, game buttons, filters in a side column (behind a Filter button on phones), and the sections "Shops we check", "How it works" and "Suggest a shop". It has a light and a dark theme: it follows the device setting until the visitor picks one with the button in the header.
+
+"Suggest a shop" (website only) posts to `POST /api/suggestions`. Suggestions are stored in the database, limited per address, and a note goes to `ADMIN_EMAIL` when mail is configured. The admin can read them at `GET /api/suggestions` and remove one with `DELETE /api/suggestions/<id>`.
+
+## Price history
+
+Every check saves the price of each product once a day (table `price_history`). `GET /api/price-history?url=<product link>` returns the recorded days. On the website each product card has a "Price history" button that shows a chart with the current, lowest and highest price. The history starts on the day this version is deployed.
+
+The admin page of the app (`/app`) lists the shops suggested by visitors, with buttons to copy an address into "Add shop" or delete it.

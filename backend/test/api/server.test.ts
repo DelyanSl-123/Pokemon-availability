@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
+import { upsertProduct } from '../../src/db/repository';
 import { buildServer } from '../../src/api/server';
 import type { Message } from '../../src/mail/mailer';
 import type { Captcha } from '../../src/api/captcha';
@@ -391,6 +392,55 @@ describe('API accounts', () => {
       expect((await app.inject({ method: 'POST', url: '/api/games', headers: member, payload: { name: 'Digimon' } })).statusCode).toBe(403);
       expect((await app.inject({ method: 'PATCH', url: '/api/games/mtg', headers: member, payload: { enabled: false } })).statusCode).toBe(403);
       expect((await app.inject({ method: 'DELETE', url: '/api/games/mtg', headers: member })).statusCode).toBe(403);
+    });
+  });
+
+  describe('shop suggestions', () => {
+    it('accepts a suggestion from anyone, stores it and shows it only to the admin', async () => {
+      const { app } = await setup();
+      const sent = await app.inject({ method: 'POST', url: '/api/suggestions', payload: { url: 'newshop.bg', note: 'Sells One Piece' } });
+      expect(sent.statusCode).toBe(201);
+
+      expect((await app.inject({ method: 'GET', url: '/api/suggestions' })).statusCode).toBe(403);
+      const headers = await signIn(app);
+      const list = await app.inject({ method: 'GET', url: '/api/suggestions', headers });
+      expect(list.json()).toMatchObject([{ url: 'https://newshop.bg', note: 'Sells One Piece' }]);
+
+      const id = list.json()[0].id;
+      expect((await app.inject({ method: 'DELETE', url: `/api/suggestions/${id}`, headers })).statusCode).toBe(200);
+      expect((await app.inject({ method: 'GET', url: '/api/suggestions', headers })).json()).toEqual([]);
+    });
+
+    it('rejects something that is not a shop address and ignores bots that fill the hidden field', async () => {
+      const { app } = await setup();
+      expect((await app.inject({ method: 'POST', url: '/api/suggestions', payload: { url: 'not a shop' } })).statusCode).toBe(400);
+      expect((await app.inject({ method: 'POST', url: '/api/suggestions', payload: { url: 'spam.bg', website: 'x' } })).statusCode).toBe(201);
+      const headers = await signIn(app);
+      expect((await app.inject({ method: 'GET', url: '/api/suggestions', headers })).json()).toEqual([]);
+    });
+  });
+
+  describe('price history', () => {
+    it('returns the recorded prices of a product by its link, one per day, to anyone', async () => {
+      const { app, db } = await setup();
+      const headers = await signIn(app);
+      const shop = (await app.inject({ method: 'POST', url: '/api/shops', headers, payload: { url: 'www.example.bg' } })).json();
+      const product = { url: 'https://www.example.bg/p/1', title: 'Booster Box', price: 100, currency: 'EUR', inStock: true, imageUrl: null };
+      upsertProduct(db, shop.id, product, '2026-11-01T09:00:00.000Z');
+      upsertProduct(db, shop.id, { ...product, price: 95 }, '2026-11-02T09:00:00.000Z');
+      upsertProduct(db, shop.id, { ...product, price: 90, inStock: false }, '2026-11-02T15:00:00.000Z');
+
+      const res = await app.inject({ method: 'GET', url: `/api/price-history?url=${encodeURIComponent(product.url)}` });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({
+        currency: 'EUR',
+        points: [
+          { day: '2026-11-01', price: 100, inStock: true },
+          { day: '2026-11-02', price: 90, inStock: false },
+        ],
+      });
+      const none = await app.inject({ method: 'GET', url: '/api/price-history?url=https%3A%2F%2Fnope.bg%2Fx' });
+      expect(none.json()).toEqual({ currency: null, points: [] });
     });
   });
 });
