@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, type User } from '../api/client';
 import { Captcha } from './Captcha';
 import { PasswordRules } from './PasswordRules';
+import { Brand } from './Brand';
 import { Req } from './Req';
 import { PASSWORD_MIN, passwordProblems } from '../utils/password';
 
@@ -148,20 +149,20 @@ export function AuthForm({
   };
 
   const title = { login: 'Sign in', register: 'Create an account', forgot: 'Forgot your password?', reset: 'Choose a new password' }[mode];
+  const lead = {
+    login: 'Welcome back. Sign in to your CollectibleMarket account.',
+    register: 'Create a free account for CollectibleMarket.',
+    forgot: 'We will send you a link to choose a new password.',
+    reset: 'Choose a new password for your account.',
+  }[mode];
   const button = { login: 'Sign in', register: 'Register', forgot: 'Send the link', reset: 'Change password' }[mode];
 
   return (
-    <main className="auth">
-      <section>
-        {onClose && (
-          <p>
-            <button type="button" className="link" onClick={onClose}>
-              ← Back to products
-            </button>
-          </p>
-        )}
+    <main className={`authpage${mode === 'register' ? ' wide' : ''}`}>
+      <Brand />
+      <section className="authcard">
         <h1>{title}</h1>
-        <p className="sub">CollectibleMarket · Pokémon TCG availability tracker</p>
+        <p className="sub lead">{lead}</p>
         {mode === 'register' && (
           <p className="sub">
             <span className="req">*</span> required field
@@ -177,7 +178,6 @@ export function AuthForm({
             </button>
           </p>
         )}
-        {mode === 'forgot' && <p className="sub">Enter your email and we will send you a link to choose a new password.</p>}
         <form className="grid" onSubmit={submit}>
           {mode === 'register' && (
             <>
@@ -293,6 +293,13 @@ export function AuthForm({
           </p>
         )}
       </section>
+      {onClose && (
+        <p className="authback">
+          <button type="button" className="link" onClick={onClose}>
+            ← Back to the home page
+          </button>
+        </p>
+      )}
     </main>
   );
 }

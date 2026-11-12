@@ -539,7 +539,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   /* ---- built frontend (optional) ---- */
   /* ---- home page: the report with the latest results (public); the app itself lives at /app ---- */
-  const renderHome = (game?: { slug: string; name: string }) => {
+  const renderHome = (viewer: User | null, game?: { slug: string; name: string }) => {
     const last = listRuns(deps.db, 1)[0];
     const now = new Date().toISOString();
     const summary: RunSummary = last ?? {
@@ -564,6 +564,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       signInUrl: '/app?login',
       suggestUrl: '/api/suggestions',
       historyUrl: '/api/price-history',
+      ...(viewer
+        ? { account: { name: viewer.firstName?.trim() || 'Account', admin: viewer.role === 'admin', profileUrl: '/app?account', adminUrl: '/app' } }
+        : {}),
       manualShops,
       ...(deps.siteUrl ? { seo: { baseUrl: deps.siteUrl, game } } : {}),
     });
@@ -572,7 +575,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.get('/', async (req, reply) => {
     // Links from e-mails (/?activate=..., ?reset=..., ?confirm-email=...) open the app.
     if (deps.staticDir && req.url.includes('?')) return reply.sendFile('index.html');
-    return reply.type('text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(renderHome());
+    return reply.type('text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(renderHome(req.user));
   });
 
   // One page per game (own address, title and description for search engines).
@@ -582,7 +585,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return reply
       .type('text/html; charset=utf-8')
       .header('Cache-Control', 'no-cache')
-      .send(renderHome({ slug: game.slug, name: game.name }));
+      .send(renderHome(req.user, { slug: game.slug, name: game.name }));
   });
 
   app.get('/sitemap.xml', async (_req, reply) => {
