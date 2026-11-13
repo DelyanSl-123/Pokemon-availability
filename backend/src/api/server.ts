@@ -264,6 +264,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   app.addHook('onRequest', async (req, reply) => {
     const token = readCookie(req, SESSION_COOKIE);
     req.user = token ? userForSession(deps.db, token) : null;
+    // The session was extended (30 minutes from now): the browser's cookie is extended with it.
+    // An expired or unknown token is cleared so the browser stops sending it.
+    if (token) reply.header('Set-Cookie', req.user ? sessionCookie(token, SESSION_MAX_AGE_SECONDS) : sessionCookie('', 0));
     const pathOnly = req.url.split('?')[0];
     const publicRead = req.method === 'GET' && PUBLIC_GET_PATHS.has(pathOnly);
     if (pathOnly.startsWith('/api/') && !PUBLIC_PATHS.has(pathOnly) && !publicRead && !req.user) {

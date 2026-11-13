@@ -92,7 +92,7 @@ The web UI needs a sign-in. There are two roles:
 | **Admin** | only the account set in `ADMIN_EMAIL` | everything: add/edit/remove shops, run a check, change schedule/search settings |
 | **User** | anyone who registers on the sign-in screen | view products, shops and the last run |
 
-Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. On every start the backend creates that account (or updates its password) and makes it the only admin. Registering can never create an admin, and nobody can register with the admin's email. Passwords are stored as salted scrypt hashes; sign-in uses an HttpOnly session cookie valid for 30 days. If you serve the app over HTTPS, set `COOKIE_SECURE=true`.
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. On every start the backend creates that account (or updates its password) and makes it the only admin. Registering can never create an admin, and nobody can register with the admin's email. Passwords are stored as salted scrypt hashes; sign-in uses an HttpOnly session cookie that ends after 30 minutes without activity: every request starts the 30 minutes again (`SESSION_IDLE_MINUTES` in `backend/src/auth/users.ts`). If you serve the app over HTTPS, set `COOKIE_SECURE=true`.
 
 The registration form also asks for first name, last name, city and address (required) and a phone number (optional), plus a required checkbox to accept the Terms and Conditions (the time is stored with the account). The terms page is a placeholder, `frontend/public/terms.html`: write your text there; they are stored with the account in the SQLite database and returned only to that signed-in user.
 
