@@ -148,9 +148,12 @@ describe('report menu of games', () => {
   });
 
   it('shows a profile link instead of Sign in / Register for a signed-in visitor', () => {
-    const html = buildReportHtml(summary, { signInUrl: '/app?login', account: { name: 'Ivan', admin: true, profileUrl: '/app?account', adminUrl: '/app' } });
-    expect(html).toContain('class="account me" href="/app?account"');
-    expect(html).toContain('class="account adm" href="/app"');
+    const html = buildReportHtml(summary, { signInUrl: '/app?login', account: { name: 'Ivan', admin: true, profileUrl: '/app?account', adminUrl: '/app', logoutUrl: '/api/auth/logout' } });
+    expect(html).toContain('id="acct-btn"');
+    expect(html).toContain('<a href="/app?account">');
+    expect(html).toContain('<a href="/app">');
+    expect(html).toContain('<a href="#favorites">');
+    expect(html).toContain('id="acct-out"');
     expect(html).not.toContain('class="account reg"');
     expect(buildReportHtml(summary, { signInUrl: '/app?login' })).toContain('class="account reg"');
   });
