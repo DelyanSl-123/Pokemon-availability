@@ -177,3 +177,7 @@ The admin page of the app (`/app`) lists the shops suggested by visitors, with b
 ## Favourites
 
 Every product has a heart. Signed out, favourites are kept in the browser (`localStorage`); after signing in they move into the account automatically and the browser copy is cleared. Signed in, a click saves at once (`GET` / `POST` / `DELETE /api/favorites`, table `favorites`, up to 500 per account). The favourites page is `/#favorites` (heart in the header, link on the profile page). Favourites are part of "Download my data" and are deleted with the account.
+
+## Home page carousels and popularity
+
+With all games selected and nothing searched or filtered, the home page shows one carousel per game: 5 products in view, up to 10 to scroll, each with a "View all <game>" link to `/games/<slug>`. The products are the most popular of the game (openings in the shop in the last 30 days plus 3 points per account that saved it as a favourite), filled up with in-stock and new products. Openings are counted anonymously per product and day (`POST /api/clicks`, table `product_clicks`, no visitor data).

@@ -414,3 +414,40 @@ export function listFavorites(db: DB, userId: number): Favorite[] {
     createdAt: r.created_at,
   }));
 }
+
+/* ---- popularity: which products people open and save (for "most popular" on the home page) ---- */
+
+/** Counts one opening of a product in its shop; ignored for links that are not tracked products. */
+export function recordProductClick(db: DB, url: string, nowIso = new Date().toISOString()): boolean {
+  const known = db.prepare('SELECT 1 FROM products WHERE url = ? LIMIT 1').get(url);
+  if (!known) return false;
+  db.prepare(
+    'INSERT INTO product_clicks (url, day, n) VALUES (?, ?, 1) ON CONFLICT (url, day) DO UPDATE SET n = n + 1',
+  ).run(url, nowIso.slice(0, 10));
+  return true;
+}
+
+/**
+ * The most popular products of every game, best first: openings in the shop during the last `days` days,
+ * plus 3 points for every account that saved the product as a favourite. Only products with a score.
+ */
+export function popularProducts(db: DB, perGame = 10, days = 30, nowIso = new Date().toISOString()): Record<string, string[]> {
+  const since = new Date(Date.parse(nowIso) - days * 86_400_000).toISOString().slice(0, 10);
+  const rows = db
+    .prepare(
+      `SELECT p.url AS url, s.game AS game,
+              COALESCE((SELECT SUM(c.n) FROM product_clicks c WHERE c.url = p.url AND c.day >= ?), 0)
+            + 3 * (SELECT COUNT(*) FROM favorites f WHERE f.url = p.url) AS score
+       FROM products p JOIN shops s ON s.id = p.shop_id
+       GROUP BY p.url, s.game
+       HAVING score > 0
+       ORDER BY score DESC, MAX(p.last_seen) DESC`,
+    )
+    .all(since) as { url: string; game: string; score: number }[];
+  const out: Record<string, string[]> = {};
+  for (const r of rows) {
+    const list = (out[r.game] ??= []);
+    if (list.length < perGame && !list.includes(r.url)) list.push(r.url);
+  }
+  return out;
+}

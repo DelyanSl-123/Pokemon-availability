@@ -177,6 +177,15 @@ describe('report menu of games', () => {
     expect(html).toContain('Our Terms have changed');
   });
 
+  it('passes the most popular links of known games to the page (at most 10, web links only)', () => {
+    const urls = Array.from({ length: 12 }, (_, i) => `https://shop.bg/p/${i}`);
+    const html = buildReportHtml(summary, { popular: { pokemon: [...urls, 'javascript:alert(1)'], nogame: ['https://x.bg/1'] } });
+    const data = JSON.parse(html.split('<script type="application/json" id="data">')[1].split('</script>')[0]);
+    expect(data.popular.pokemon).toEqual(urls.slice(0, 10));
+    expect(data.popular.nogame).toBeUndefined();
+    expect(html).toContain('function renderCarousels');
+  });
+
   it('links the logo to the home page', () => {
     expect(buildReportHtml(summary, { favoritesUrl: '/api/favorites' })).toContain('<a class="brand" href="/"');
     expect(buildReportHtml(summary, { seo: { baseUrl: 'https://x.bg/' } })).toContain('<a class="brand" href="https://x.bg/"');

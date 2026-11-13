@@ -41,6 +41,10 @@ export interface ReportOptions {
   suggestUrl?: string;
   /** Address that returns the recorded prices of a product (GET ?url=...); adds a "Price history" chart to each card. Site only. */
   historyUrl?: string;
+  /** Address that counts a product opened in its shop (POST {url}); feeds "most popular". Site only. */
+  clickUrl?: string;
+  /** The most popular product links of every game (best first); the home page shows them first. */
+  popular?: Record<string, string[]>;
   /** Address of the favourites of the signed-in visitor (GET, POST, DELETE). Without it, or signed out, favourites stay in the browser. */
   favoritesUrl?: string;
   /** The signed-in visitor: the header shows a profile icon (and a link to the admin page) instead of Sign in / Register. */
@@ -210,6 +214,14 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       backInStock: p.backInStock,
       image: p.imageUrl ?? '',
     })),
+    // where the game pages are: the site's address, '' = this site (relative links), null = the report file (no game pages)
+    gameBase: opts.seo ? trimSlash(opts.seo.baseUrl) : opts.favoritesUrl || opts.suggestUrl ? '' : null,
+    // only plain web links of games that exist, at most 10 per game
+    popular: Object.fromEntries(
+      Object.entries(opts.popular ?? {})
+        .filter(([slug]) => games.some((g) => g.slug === slug))
+        .map(([slug, urls]) => [slug, urls.filter((u) => /^https?:\/\//i.test(u)).slice(0, 10)]),
+    ),
   };
 
   const LIGHT_VARS =
@@ -228,6 +240,7 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   const favoritesUrl = safeLink(opts.favoritesUrl);
   const HEART_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>';
   const historyUrl = safeLink(opts.historyUrl);
+  const clickUrl = safeLink(opts.clickUrl);
   const seo = opts.seo;
   // The logo leads to the home page: the site's own address, or the top of this page for the report file.
   const homeHref = seo ? `${trimSlash(seo.baseUrl)}/` : suggestUrl || favoritesUrl || opts.account ? '/' : '#';
@@ -655,6 +668,30 @@ ${head}
   .tcheck { display:flex; align-items:flex-start; gap:10px; margin-top:16px; font-weight:600; cursor:pointer; }
   .tcheck input { width:20px; height:20px; margin:2px 0 0; flex:none; accent-color:var(--accent); }
   .sdlg .btn.primary:disabled { opacity:.5; cursor:not-allowed; }
+  /* home page: one carousel per game */
+  @media (min-width:901px) { .layout.is-home .side { display:none; } }
+  .maincol { max-width:100%; }
+  .carousel, .car-wrap { min-width:0; max-width:100%; }
+  .car-track { width:100%; }
+  .carousel { margin-top:22px; }
+  .carousel + .carousel { margin-top:40px; }
+  .car-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .car-head h2 { margin:0; display:flex; align-items:center; gap:10px; font-size:1.45rem; font-weight:800; letter-spacing:-.02em; }
+  .car-head .gdot { width:14px; height:14px; }
+  .car-sub { color:var(--muted); font-size:.85rem; font-weight:600; }
+  .car-all { margin-left:auto; font-weight:700; font-size:.95rem; text-decoration:none; color:var(--accent-t); }
+  .car-all:hover { text-decoration:underline; }
+  .car-wrap { position:relative; margin-top:14px; }
+  .car-track { display:flex; gap:16px; overflow-x:auto; scroll-snap-type:x mandatory; scroll-behavior:smooth; padding:2px 2px 10px; scrollbar-width:thin; }
+  .car-track > .card { flex:0 0 calc((100% - 4 * 16px) / 5); min-width:0; scroll-snap-align:start; }
+  .carousel .shopname { display:none; }
+  .car-nav { position:absolute; top:38%; z-index:2; width:42px; height:42px; border-radius:50%; border:1px solid var(--line); background:var(--surface); color:var(--text); font-size:1.6rem; line-height:1; cursor:pointer; box-shadow:var(--shadow-hover); }
+  .car-nav.prev { left:-18px; } .car-nav.next { right:-18px; }
+  .car-nav:disabled { opacity:0; pointer-events:none; }
+  @media (max-width:1100px) { .car-track > .card { flex-basis:calc((100% - 3 * 16px) / 4); } }
+  @media (max-width:900px) { .car-track > .card { flex-basis:calc((100% - 2 * 16px) / 3); } }
+  @media (max-width:640px) { .car-track { gap:10px; } .car-track > .card { flex-basis:calc((100% - 10px) / 2.15); } .car-all { margin-left:0; width:100%; } }
+  @media (hover:none) { .car-nav { display:none; } }
   dialog.hdlg { width:min(640px, calc(100% - 32px)); }
   .hstats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:16px; }
   .hstats div { padding:12px 14px; border-radius:12px; background:var(--field); border:1px solid var(--field-line); }
@@ -772,7 +809,7 @@ ${head}
   ${crawlList}
 </main>
 
-<main class="wrap" id="fav-view" data-url="${esc(favoritesUrl)}" data-signed="${signedIn && favoritesUrl ? '1' : ''}" hidden>
+<main class="wrap" id="fav-view" data-click="${esc(clickUrl)}" data-url="${esc(favoritesUrl)}" data-signed="${signedIn && favoritesUrl ? '1' : ''}" hidden>
   <div class="cmp-top">
     <a class="btn ghost" href="#">← Back to products</a>
     <h2>Favourites</h2>
@@ -1079,7 +1116,7 @@ ${historyDialog}
 
     var link = safeUrl(p.url);
     var main = el(link ? 'a' : 'div', 'card-link');
-    if (link) { main.href = link; main.target = '_blank'; main.rel = 'noreferrer'; }
+    if (link) { main.href = link; main.target = '_blank'; main.rel = 'noreferrer'; main.addEventListener('click', function () { countClick(p.url); }); }
 
     var pic = picture(p, 'pic');
     var flags = el('div', 'flags');
@@ -1320,8 +1357,89 @@ ${historyDialog}
   });
   window.addEventListener('hashchange', function () { override = undefined; route(); });
 
+  // ---- home page: a carousel of the most popular products of every game
+  var CLICK_URL = $('fav-view').getAttribute('data-click');
+  function countClick(url) {
+    if (!CLICK_URL) return;
+    var body = JSON.stringify({ url: url });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(CLICK_URL, body)) return;
+    } catch (e) { /* fall back to fetch */ }
+    fetch(CLICK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }).catch(function () {});
+  }
+  var POPULAR = data.popular || {};
+  var PER_CAROUSEL = 10;
+  /** Up to 10 products of a game: the most popular first, then in stock and new ones, then the rest. */
+  function topProducts(slug) {
+    var own = products.filter(function (p) { return p.game === slug; });
+    var picked = [];
+    (POPULAR[slug] || []).forEach(function (u) {
+      var p = own.filter(function (x) { return x.url === u && picked.indexOf(x) < 0; })[0];
+      if (p) picked.push(p);
+    });
+    var rank = function (p) { return (p.inStock === true ? 0 : p.inStock === null ? 2 : 4) + (p.isNew || p.backInStock ? 0 : 1); };
+    own.filter(function (p) { return picked.indexOf(p) < 0; })
+      .sort(function (a, b) { return rank(a) - rank(b); })
+      .forEach(function (p) { if (picked.length < PER_CAROUSEL) picked.push(p); });
+    return picked.slice(0, PER_CAROUSEL);
+  }
+  function gameHref(slug) { return typeof data.gameBase === 'string' ? data.gameBase + '/games/' + encodeURIComponent(slug) : '#'; }
+  function renderCarousels(out) {
+    var shown = 0;
+    games.forEach(function (g) {
+      var list = topProducts(g.slug);
+      if (!list.length) return;
+      shown += list.length;
+      var sec = el('section', 'carousel');
+      sec.style.setProperty('--g', theme(g.slug)[0]);
+      var head = el('div', 'car-head');
+      var dot = el('span', 'gdot'); dot.style.background = theme(g.slug)[0];
+      var h = el('h2'); h.appendChild(dot); h.appendChild(document.createTextNode(g.name));
+      head.appendChild(h);
+      head.appendChild(el('span', 'car-sub', (POPULAR[g.slug] || []).length ? 'Most popular' : 'In stock and new'));
+      var all = el('a', 'car-all', 'View all ' + g.name + ' \u2192');
+      all.href = gameHref(g.slug);
+      if (all.getAttribute('href') === '#') all.addEventListener('click', function (e) { e.preventDefault(); setGame(g.slug); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      head.appendChild(all);
+      sec.appendChild(head);
+      var wrap = el('div', 'car-wrap');
+      var track = el('div', 'car-track');
+      track.setAttribute('role', 'list');
+      track.setAttribute('aria-label', g.name + ' products');
+      list.forEach(function (p) { var c = card(p); c.setAttribute('role', 'listitem'); track.appendChild(c); });
+      var prev = el('button', 'car-nav prev', '\u2039'); prev.type = 'button'; prev.setAttribute('aria-label', 'Previous ' + g.name + ' products');
+      var next = el('button', 'car-nav next', '\u203a'); next.type = 'button'; next.setAttribute('aria-label', 'Next ' + g.name + ' products');
+      var step = function (dir) { track.scrollBy({ left: dir * track.clientWidth, behavior: 'smooth' }); };
+      prev.addEventListener('click', function () { step(-1); });
+      next.addEventListener('click', function () { step(1); });
+      var edges = function () {
+        prev.disabled = track.scrollLeft <= 4;
+        next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+      };
+      track.addEventListener('scroll', edges);
+      wrap.appendChild(prev); wrap.appendChild(track); wrap.appendChild(next);
+      sec.appendChild(wrap);
+      out.appendChild(sec);
+      setTimeout(edges, 0);
+    });
+    return shown;
+  }
+
   function render() {
     var q = $('q').value.trim().toLowerCase();
+    // the home page itself (all games, nothing searched or filtered): one carousel per game
+    if (!game && !q && !$('shop').value && $('sort').value === 'shop' && !$('instock').checked && !$('onlynew').checked) {
+      var home = $('results');
+      home.textContent = '';
+      document.querySelector('.layout').classList.add('is-home');
+      var n = renderCarousels(home);
+      $('res-title').textContent = 'Popular products';
+      $('count').textContent = n ? '' : 'No products yet';
+      $('fcount').textContent = '';
+      refreshPicks();
+      return;
+    }
+    document.querySelector('.layout').classList.remove('is-home');
     var shop = $('shop').value;
     var sort = $('sort').value;
     var list = products.filter(function (p) {

@@ -116,6 +116,14 @@ export function openDb(file: string): DB {
       PRIMARY KEY (user_id, url)
     );
 
+    -- how often each product was opened in its shop, per day (anonymous counts, no visitor data)
+    CREATE TABLE IF NOT EXISTS product_clicks (
+      url  TEXT NOT NULL,
+      day  TEXT NOT NULL,
+      n    INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (url, day)
+    );
+
     CREATE TABLE IF NOT EXISTS shop_suggestions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       url        TEXT NOT NULL,
