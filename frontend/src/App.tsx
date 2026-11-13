@@ -85,7 +85,12 @@ export default function App() {
           onUserChange={setUser}
           onSignIn={(mode) => setAuth(mode)}
           onSignOut={signOut}
-          onSessionExpired={() => setUser(null)}
+          onSessionExpired={() => {
+            // 30 minutes without activity end the session: back to the sign-in form with a note
+            setUser(null);
+            setAuth('login');
+            setFlash({ ok: false, text: 'You were signed out after 30 minutes without activity. Please sign in again.' });
+          }}
         />
       )}
     </>

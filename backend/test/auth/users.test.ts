@@ -39,4 +39,17 @@ describe('users', () => {
     expect(userForSession(db, token)?.email).toBe('a@test.com');
     expect(userForSession(db, token + 'x')).toBeNull();
   });
+
+  it('ends a session after 30 minutes without requests; every request starts the 30 minutes again', () => {
+    const db = openDb(':memory:');
+    const user = createUser(db, 'idle@test.com', 'a-good-Passw0rd!');
+    const t0 = Date.parse('2026-11-13T10:00:00Z');
+    const min = 60_000;
+    const token = createSession(db, user.id, t0);
+    expect(userForSession(db, token, t0 + 29 * min)?.email).toBe('idle@test.com'); // active: now ends at t0+59
+    expect(userForSession(db, token, t0 + 44 * min)?.email).toBe('idle@test.com'); // 15 min idle, then a request: ends at t0+74
+    expect(userForSession(db, token, t0 + 73 * min)?.email).toBe('idle@test.com'); // 29 min idle: still valid, ends at t0+103
+    expect(userForSession(db, token, t0 + 103 * min + 1)).toBeNull(); // just over 30 min idle: expired
+    expect(userForSession(db, token, t0 + 104 * min)).toBeNull(); // and stays expired
+  });
 });

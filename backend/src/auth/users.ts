@@ -47,8 +47,9 @@ interface UserRow {
   terms_version: string | null;
 }
 
-const SESSION_DAYS = 30;
-export const SESSION_MAX_AGE_SECONDS = SESSION_DAYS * 24 * 60 * 60;
+/** A session ends after this many minutes without any request; every request starts the minutes again. */
+export const SESSION_IDLE_MINUTES = 30;
+export const SESSION_MAX_AGE_SECONDS = SESSION_IDLE_MINUTES * 60;
 
 const toUser = (r: UserRow): User => ({
   id: r.id,
@@ -122,22 +123,29 @@ export function ensureAdmin(db: DB, email: string, password?: string): User | nu
 }
 
 /** Starts a session and returns its token (only a hash of it is stored). */
-export function createSession(db: DB, userId: number): string {
+export function createSession(db: DB, userId: number, now = Date.now()): string {
   const token = crypto.randomBytes(32).toString('base64url');
-  const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
-  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date().toISOString());
+  const expires = new Date(now + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+  db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(new Date(now).toISOString());
   db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(sha256(token), userId, expires);
   return token;
 }
 
-export function userForSession(db: DB, token: string): User | null {
+/**
+ * The person signed in with this token, or null when the token is unknown or has expired.
+ * A valid session is extended: it now ends SESSION_IDLE_MINUTES after this request (sliding expiry).
+ */
+export function userForSession(db: DB, token: string, now = Date.now()): User | null {
+  const hash = sha256(token);
   const row = db
     .prepare(
       `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
-    .get(sha256(token), new Date().toISOString()) as UserRow | undefined;
-  return row ? toUser(row) : null;
+    .get(hash, new Date(now).toISOString()) as UserRow | undefined;
+  if (!row) return null;
+  db.prepare('UPDATE sessions SET expires_at = ? WHERE token_hash = ?').run(new Date(now + SESSION_MAX_AGE_SECONDS * 1000).toISOString(), hash);
+  return toUser(row);
 }
 
 export function deleteSession(db: DB, token: string): void {

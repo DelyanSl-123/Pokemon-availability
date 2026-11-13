@@ -898,7 +898,7 @@ ${historyDialog}
       credentials: 'same-origin',
       headers: body ? { 'Content-Type': 'application/json' } : {},
       body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) { if (!r.ok) throw new Error('failed'); return r.json(); });
+    }).then(function (r) { if (!r.ok) { var err = new Error('failed'); err.status = r.status; throw err; } return r.json(); });
   }
   function toggleFav(p) {
     var before = favOrder.map(function (u) { return favs[u]; });
@@ -908,7 +908,16 @@ ${historyDialog}
     refreshFavs();
     if (!FAV_SIGNED) { writeLocalFavs(); return; }
     (adding ? favApi('POST', '', { items: [favItem(p)] }) : favApi('DELETE', '?url=' + encodeURIComponent(p.url)))
-      .catch(function () { setFavs(before); $('fav-note').textContent = 'Could not save the change. Please try again.'; });
+      .catch(function (e) {
+        if (e && e.status === 401) {
+          // the session ended (30 minutes without activity): keep the change in this browser and show the page signed out;
+          // it moves into the account at the next sign-in
+          writeLocalFavs();
+          location.reload();
+          return;
+        }
+        setFavs(before); $('fav-note').textContent = 'Could not save the change. Please try again.';
+      });
   }
   function renderFavs() {
     var grid = $('fav-grid');

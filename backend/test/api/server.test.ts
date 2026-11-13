@@ -561,4 +561,17 @@ describe('API accounts', () => {
       expect(db.prepare('SELECT COUNT(*) AS n FROM product_clicks').get()).toEqual({ n: 1 });
     });
   });
+
+  describe('session expiry', () => {
+    it('extends the sign-in cookie to 30 minutes on every request and clears an unknown one', async () => {
+      const { app } = await setup();
+      const headers = await signIn(app);
+      const res = await app.inject({ method: 'GET', url: '/api/auth/me', headers });
+      expect(res.statusCode).toBe(200);
+      expect(String(res.headers['set-cookie'])).toContain('Max-Age=1800');
+      const gone = await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: 'cm_session=not-a-session' } });
+      expect(gone.statusCode).toBe(401);
+      expect(String(gone.headers['set-cookie'])).toContain('Max-Age=0');
+    });
+  });
 });
