@@ -1,4 +1,3 @@
-import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import * as cron from 'node-cron';
@@ -62,6 +61,7 @@ import { normalizeShopInput } from '../shops/shop-urls';
 import { buildReportHtml } from '../report/html';
 import type { ManualShop } from '../shops/sync';
 import type { RunSummary, Settings } from '../types';
+import { trimSlash } from '../util/url';
 
 export interface ServerDeps {
   db: DB;
@@ -113,6 +113,19 @@ function readCookie(req: FastifyRequest, name: string): string | undefined {
 
 const PHONE_RE = /^(\+?[0-9][0-9 ()-]{5,19})?$/;
 const PHONE_MESSAGE = 'Enter a valid phone number (digits, spaces, + ( ) -)';
+
+/** The fields of the profile: the same rules on the registration form and on "My account". */
+const profileFields = {
+  firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
+  lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
+  city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
+  address: z.string().trim().min(1, { message: 'Enter your address' }).max(200),
+  phone: z.string().trim().max(20).regex(PHONE_RE, { message: PHONE_MESSAGE }).optional(),
+};
+const profileSchema = z.object(profileFields);
+
+/** Query parameters of the e-mail links (activation, password reset, new e-mail); they open the app, not the home page. */
+const EMAIL_LINK_PARAMS = ['activate', 'reset', 'confirm-email'];
 
 const httpUrl = z
   .string()
@@ -170,16 +183,7 @@ const registerSchema = credentialsSchema
     /** Hidden "honeypot" field: people never see it, simple bots fill it in. */
     website: z.string().max(200).optional(),
     acceptTerms: z.literal(true, { errorMap: () => ({ message: 'You must agree to the Terms and Conditions' }) }),
-    firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
-    lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
-    city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
-    address: z.string().trim().min(1, { message: 'Enter your address' }).max(200),
-    phone: z
-      .string()
-      .trim()
-      .max(20)
-      .regex(PHONE_RE, { message: PHONE_MESSAGE })
-      .optional(),
+    ...profileFields,
   })
   .superRefine((v, ctx) => {
     if (v.password !== v.confirmPassword) {
@@ -232,13 +236,19 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, trustProxy: deps.trustProxy ?? false });
   registerBotProtection(app, deps.security);
-  await app.register(cors, { origin: true });
+  // No CORS: the app and the API are served from the same address (Vite proxies /api in development),
+  // so other websites cannot call the API from a visitor's browser.
 
   app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
     if (err instanceof z.ZodError) {
       return reply.status(400).send({ error: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') });
     }
     const status = err.statusCode ?? 500;
+    if (status >= 500) {
+      // Never show internal details (database errors and the like) to the visitor; keep them in the server log.
+      console.error(err);
+      return reply.status(status).send({ error: 'Something went wrong on our side. Please try again.' });
+    }
     return reply.status(status).send({ error: err.message });
   });
 
@@ -290,13 +300,13 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const CAPTCHA_MESSAGE = 'Please complete the CAPTCHA check';
   const captchaOk = async (token: string | undefined, ip: string) => !deps.captcha || (await deps.captcha.verify(token, ip));
   const lockout = createLockout(deps.security?.loginFailuresPerAccount ?? 5, 15 * 60_000, deps.security?.now);
-  const linkTo = (query: string, token: string) => `${deps.appUrl.replace(/\/+$/, '')}/?${query}=${token}`;
+  const linkTo = (query: string, token: string) => `${trimSlash(deps.appUrl)}/?${query}=${token}`;
 
   /** What the browser needs to know before showing the forms. */
   app.get('/api/config', async () => ({ turnstileSiteKey: deps.captcha?.siteKey ?? null }));
 
   async function sendActivation(email: string, firstName: string | null, userId: number): Promise<boolean> {
-    const link = `${deps.appUrl.replace(/\/+$/, '')}/?activate=${createActivationToken(deps.db, userId)}`;
+    const link = linkTo('activate', createActivationToken(deps.db, userId));
     const result = await deps.mailer.send(buildActivationEmail(email, firstName, link, ACTIVATION_HOURS));
     return result.sent;
   }
@@ -374,14 +384,6 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
 
   /* ---- the signed-in person's own account ---- */
-
-  const profileSchema = z.object({
-    firstName: z.string().trim().min(1, { message: 'Enter your first name' }).max(60),
-    lastName: z.string().trim().min(1, { message: 'Enter your last name' }).max(60),
-    city: z.string().trim().min(1, { message: 'Enter your city' }).max(80),
-    address: z.string().trim().min(1, { message: 'Enter your address' }).max(200),
-    phone: z.string().trim().max(20).regex(PHONE_RE, { message: PHONE_MESSAGE }).optional(),
-  });
 
   app.patch('/api/account', async (req) => ({ user: updateProfile(deps.db, req.user!.id, profileSchema.parse(req.body)) }));
 
@@ -527,7 +529,6 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return deps.service.run('manual');
   });
 
-  /* ---- settings ---- */
   /* ---- favourites (every signed-in visitor has a list of their own) ---- */
 
   app.get('/api/favorites', async (req) => listFavorites(deps.db, req.user!.id));
@@ -563,10 +564,13 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   app.get('/api/suggestions', { preHandler: requireAdmin }, async () => listShopSuggestions(deps.db));
 
-  app.delete<{ Params: { id: string } }>('/api/suggestions/:id', { preHandler: requireAdmin }, async (req, reply) => {
-    if (!deleteShopSuggestion(deps.db, Number(req.params.id))) return reply.status(404).send({ error: 'Not found' });
+  app.delete('/api/suggestions/:id', { preHandler: requireAdmin }, async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    if (!deleteShopSuggestion(deps.db, id)) return reply.status(404).send({ error: 'Not found' });
     return { ok: true };
   });
+
+  /* ---- settings ---- */
 
   app.get('/api/settings', { preHandler: requireAdmin }, async () => getSettings(deps.db, deps.defaults));
 
@@ -578,7 +582,6 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return settings;
   });
 
-  /* ---- built frontend (optional) ---- */
   /* ---- home page: the report with the latest results (public); the app itself lives at /app ---- */
   const renderHome = (viewer: User | null, game?: { slug: string; name: string }) => {
     const last = listRuns(deps.db, 1)[0];
@@ -624,8 +627,10 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   };
 
   app.get('/', async (req, reply) => {
-    // Links from e-mails (/?activate=..., ?reset=..., ?confirm-email=...) open the app.
-    if (deps.staticDir && req.url.includes('?')) return reply.sendFile('index.html');
+    // Links from e-mails (/?activate=..., ?reset=..., ?confirm-email=...) open the app. Any other query
+    // (?fbclid=... from Facebook, ?utm_source=... and the like) still shows the home page.
+    const query = new URLSearchParams(req.url.split('?')[1] ?? '');
+    if (deps.staticDir && EMAIL_LINK_PARAMS.some((p) => query.has(p))) return reply.sendFile('index.html');
     return reply.type('text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(renderHome(req.user));
   });
 
@@ -641,7 +646,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
   app.get('/sitemap.xml', async (_req, reply) => {
     if (!deps.siteUrl) return reply.status(404).type('text/plain').send('Not found');
-    const base = deps.siteUrl.replace(/\/+$/, '');
+    const base = trimSlash(deps.siteUrl);
     const urls = [`${base}/`, ...listGames(deps.db).filter((g) => g.enabled).map((g) => `${base}/games/${g.slug}`)];
     const day = new Date().toISOString().slice(0, 10);
     const xml =
@@ -651,6 +656,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return reply.type('application/xml; charset=utf-8').send(xml);
   });
 
+  /* ---- built frontend (optional): the app at /app ---- */
   if (deps.staticDir) {
     // index:false so that "/" is the report above, not the app's index.html
     await app.register(fastifyStatic, { root: deps.staticDir, index: false });

@@ -94,7 +94,6 @@ export interface RegisterBody {
   website?: string;
 }
 
-/** An error response from the API; `status` 401 means the session is missing or expired. */
 export interface ShopSuggestion {
   id: number;
   url: string;
@@ -102,6 +101,7 @@ export interface ShopSuggestion {
   createdAt: string;
 }
 
+/** An error response from the API; `status` 401 means the session is missing or expired. */
 export class ApiError extends Error {
   constructor(
     message: string,

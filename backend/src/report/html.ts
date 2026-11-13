@@ -1,4 +1,5 @@
 import type { RunSummary } from '../types';
+import { safeLink, trimSlash } from '../util/url';
 
 /** Makes JSON safe to embed inside a <script> element. */
 function safeJson(value: unknown): string {
@@ -48,7 +49,6 @@ export interface ReportOptions {
   seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
 }
 
-const trimSlash = (u: string) => u.replace(/\/+$/, '');
 
 function seoTitle(game?: { name: string }): string {
   return game
@@ -136,13 +136,12 @@ function crawlableList(products: RunSummary['products'], label: (shop: string, g
 
 export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): string {
   // Sign-in / register icon in the header, linking to the web app (only http(s) addresses).
-  const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? opts.appUrl.replace(/\/+$/, '') + '/' : '';
-  const signIn = opts.signInUrl && /^(https?:\/\/|\/)/i.test(opts.signInUrl) ? opts.signInUrl : appUrl;
+  const appUrl = opts.appUrl && /^https?:\/\//i.test(opts.appUrl) ? trimSlash(opts.appUrl) + '/' : '';
+  const signIn = safeLink(opts.signInUrl) || appUrl;
   // The register link opens the same screen in registration mode (?login becomes ?register).
   const registerUrl = /[?&]login\b/.test(signIn) ? signIn.replace(/([?&])login\b/, '$1register') : signIn + (signIn.includes('?') ? '&' : '?') + 'register';
-  const okLink = (u: string | undefined) => (u && /^(https?:\/\/|\/)/i.test(u) ? u : '');
   const USER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
-  const signedIn = opts.account && okLink(opts.account.profileUrl) ? opts.account : undefined;
+  const signedIn = opts.account && safeLink(opts.account.profileUrl) ? opts.account : undefined;
   const MENU_ICONS = {
     heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
     shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/></svg>',
@@ -157,8 +156,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       `<div class="acct-who"><b>${esc(signedIn.name)}</b>${signedIn.email ? `<span>${esc(signedIn.email)}</span>` : ''}</div>` +
       `<a href="#favorites">${MENU_ICONS.heart}My favourites</a>` +
       `<a href="${esc(signedIn.profileUrl)}">${USER_ICON}My account</a>` +
-      (signedIn.admin && okLink(signedIn.adminUrl) ? `<a href="${esc(okLink(signedIn.adminUrl))}">${MENU_ICONS.shield}Admin page</a>` : '') +
-      `<button type="button" class="acct-out" id="acct-out" data-url="${esc(okLink(signedIn.logoutUrl))}">${MENU_ICONS.out}Sign out</button>` +
+      (signedIn.admin && safeLink(signedIn.adminUrl) ? `<a href="${esc(safeLink(signedIn.adminUrl))}">${MENU_ICONS.shield}Admin page</a>` : '') +
+      `<button type="button" class="acct-out" id="acct-out" data-url="${esc(safeLink(signedIn.logoutUrl))}">${MENU_ICONS.out}Sign out</button>` +
       '</div></div>'
     : signIn
     ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
@@ -216,10 +215,10 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     '--img:#F4F3F0; --hero:#161A23; --hero-text:#F1F3F7; --hero-muted:#A3ACBB; --hero-line:#262C3A; --hero-ok:#6FE0A0; --hero-new:#FFB86B; --hero-hover:#0D1016; --logo-edge:#fff;' +
     '--field:#0D1016; --field-line:#2E3545; --badge-bg:rgba(255,106,61,.14); --badge-t:#FF8A63; --inv:#F1F3F7; --inv-t:#0D1016;' +
     '--shadow:0 1px 2px rgba(0,0,0,.3); --shadow-hover:0 12px 30px rgba(0,0,0,.45);';
-  const suggestUrl = opts.suggestUrl && /^(https?:\/\/|\/)/i.test(opts.suggestUrl) ? opts.suggestUrl : '';
-  const favoritesUrl = opts.favoritesUrl && /^(https?:\/\/|\/)/i.test(opts.favoritesUrl) ? opts.favoritesUrl : '';
+  const suggestUrl = safeLink(opts.suggestUrl);
+  const favoritesUrl = safeLink(opts.favoritesUrl);
   const HEART_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>';
-  const historyUrl = opts.historyUrl && /^(https?:\/\/|\/)/i.test(opts.historyUrl) ? opts.historyUrl : '';
+  const historyUrl = safeLink(opts.historyUrl);
   const seo = opts.seo;
   const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
   const initialGame = seoGame ? seoGame.slug : '';
@@ -303,7 +302,6 @@ ${head}
   #results { scroll-margin-top:76px; }
 
   /* shops */
-  .section-label { margin:22px 0 8px; font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
   /* top bar: stays on screen while scrolling */
   .topbar { position:sticky; top:0; z-index:30; background:var(--hero); color:var(--hero-text); border-bottom:1px solid var(--hero-line); }
   .bar { display:flex; align-items:center; gap:14px; height:60px; }
@@ -516,12 +514,9 @@ ${head}
   .acct-menu a:hover, .acct-menu button:hover { background:var(--field); color:var(--text); }
   .acct-menu .acct-out { margin-top:6px; border-top:1px solid var(--line); border-radius:0 0 10px 10px; color:var(--bad); }
   @media (max-width:700px) { .acct-name, .acct-btn .chev { display:none; } .acct-btn { width:44px; padding:0; justify-content:center; } }
-  .account.me { border:1px solid var(--hero-line); border-radius:999px; padding:0 16px 0 10px; max-width:220px; }
-  .account.me span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .account.adm span { display:inline; }
   @media (max-width:700px) {
-    .account:not(.reg):not(.adm) { width:44px; padding:0; justify-content:center; border:1px solid var(--hero-line); border-radius:50%; }
-    .account:not(.reg):not(.adm) span { display:none; }
+    .account:not(.reg) { width:44px; padding:0; justify-content:center; border:1px solid var(--hero-line); border-radius:50%; }
+    .account:not(.reg) span { display:none; }
     .account.reg { padding:0 14px; }
     .bar .iconbtn { display:none; }
   }

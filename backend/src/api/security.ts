@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { trimSlash } from '../util/url';
 
 /**
  * Bot protection for the web app. Three layers:
@@ -101,7 +102,7 @@ const isPublicPage = (path: string) => path === '/' || path === '/sitemap.xml' |
 
 function indexableRobots(siteUrl?: string): string {
   const lines = ['User-agent: *', 'Allow: /$', 'Allow: /games/', 'Allow: /sitemap.xml', 'Disallow: /app', 'Disallow: /api/'];
-  if (siteUrl) lines.push('', `Sitemap: ${siteUrl.replace(/\/+$/, '')}/sitemap.xml`);
+  if (siteUrl) lines.push('', `Sitemap: ${trimSlash(siteUrl)}/sitemap.xml`);
   return lines.join('\n') + '\n';
 }
 
