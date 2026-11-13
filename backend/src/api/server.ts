@@ -663,6 +663,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
           }
         : {}),
       manualShops,
+      ...(game ? { game } : {}),
       ...(deps.siteUrl ? { seo: { baseUrl: deps.siteUrl, game } } : {}),
     });
   };

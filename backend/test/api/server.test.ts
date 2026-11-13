@@ -574,4 +574,16 @@ describe('API accounts', () => {
       expect(String(gone.headers['set-cookie'])).toContain('Max-Age=0');
     });
   });
+
+  describe('game pages', () => {
+    it('opens /games/<slug> with that game selected, also without search-engine mode', async () => {
+      const { app } = await setup();
+      const page = await app.inject({ method: 'GET', url: '/games/onepiece' });
+      expect(page.statusCode).toBe(200);
+      expect(page.body).toContain('var game = "onepiece";');
+      expect(page.body).toContain('<title>One Piece · CollectibleMarket</title>');
+      expect((await app.inject({ method: 'GET', url: '/' })).body).toContain('var game = "";');
+      expect((await app.inject({ method: 'GET', url: '/games/no-such-game' })).statusCode).toBe(404);
+    });
+  });
 });
