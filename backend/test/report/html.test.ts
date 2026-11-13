@@ -169,6 +169,12 @@ describe('report menu of games', () => {
     expect(signedIn).toContain('data-url="/api/favorites" data-signed="1"');
   });
 
+  it('links the logo to the home page', () => {
+    expect(buildReportHtml(summary, { favoritesUrl: '/api/favorites' })).toContain('<a class="brand" href="/"');
+    expect(buildReportHtml(summary, { seo: { baseUrl: 'https://x.bg/' } })).toContain('<a class="brand" href="https://x.bg/"');
+    expect(buildReportHtml(summary)).toContain('<a class="brand" href="#"');
+  });
+
   it('adds the price history chart only when an address for it is given', () => {
     expect(buildReportHtml(summary)).not.toContain('id="hist-dlg"');
     expect(buildReportHtml(summary, { historyUrl: '/api/price-history' })).toContain('id="hist-dlg"');

@@ -220,6 +220,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   const HEART_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>';
   const historyUrl = safeLink(opts.historyUrl);
   const seo = opts.seo;
+  // The logo leads to the home page: the site's own address, or the top of this page for the report file.
+  const homeHref = seo ? `${trimSlash(seo.baseUrl)}/` : suggestUrl || favoritesUrl || opts.account ? '/' : '#';
   const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
   const initialGame = seoGame ? seoGame.slug : '';
   const head = seo ? seoHead(seo.baseUrl, seoGame, games, summary.products, label) : '';
@@ -286,7 +288,8 @@ ${head}
   .sub { color:var(--muted); font-size:.85rem; }
 
   /* hero */
-  .brand { display:flex; align-items:center; gap:14px; }
+  .brand { display:flex; align-items:center; gap:14px; color:inherit; text-decoration:none; border-radius:10px; }
+  .brand:hover { color:inherit; }
   .brand svg { width:52px; height:52px; flex:none; filter:drop-shadow(0 4px 10px rgba(227,53,13,.35)); }
   .bname { font-size:1.8rem; font-weight:800; letter-spacing:-.03em; line-height:1.05; }
   .bname span { color:var(--accent); }
@@ -660,7 +663,7 @@ ${head}
 <body>
 <div class="topbar">
   <div class="wrap bar">
-    <div class="brand">${LOGO_SVG}<b class="bname">Collectible<span>Market</span></b></div>
+    <a class="brand" href="${esc(homeHref)}" aria-label="CollectibleMarket home page">${LOGO_SVG}<b class="bname">Collectible<span>Market</span></b></a>
     <div class="search topsearch">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input type="search" id="q" placeholder="Search in all shops…" aria-label="Search products">
