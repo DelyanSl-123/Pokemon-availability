@@ -329,7 +329,7 @@ describe('API accounts', () => {
     it('ignores honeypot registrations and requires the CAPTCHA when one is configured', async () => {
       const verify = vi.fn(async (t: string | undefined) => t === 'good');
       const { app, mails } = await setup({ captcha: { siteKey: 'site-key', verify } });
-      expect((await app.inject({ method: 'GET', url: '/api/config' })).json()).toEqual({ turnstileSiteKey: 'site-key' });
+      expect((await app.inject({ method: 'GET', url: '/api/config' })).json()).toEqual({ turnstileSiteKey: 'site-key', termsVersion: TERMS_VERSION });
       const body = { email: 'bot@test.com', password: PASSWORD, confirmPassword: PASSWORD, ...PROFILE };
       const reg = (extra: object) => app.inject({ method: 'POST', url: '/api/auth/register', payload: { ...body, ...extra } });
       expect((await reg({})).statusCode).toBe(400);
