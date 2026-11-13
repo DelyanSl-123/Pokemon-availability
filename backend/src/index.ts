@@ -65,6 +65,8 @@ async function main() {
     security: {
       sitePassword: process.env.SITE_PASSWORD || undefined,
       siteUser: process.env.SITE_USER || undefined,
+      guestUser: process.env.SITE_GUEST_USER?.trim() || undefined,
+      guestPassword: process.env.SITE_GUEST_PASSWORD || undefined,
       indexable: publicSiteUrl !== undefined,
       siteUrl: publicSiteUrl,
     },
