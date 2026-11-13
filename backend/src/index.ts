@@ -12,6 +12,7 @@ import { createService } from './core/service';
 import { normalizeShopInput } from './shops/shop-urls';
 import { readManualShops, syncShops } from './shops/sync';
 import type { Settings } from './types';
+import { trimSlash } from './util/url';
 
 async function main() {
   const port = Number(process.env.PORT ?? 3001);
@@ -24,10 +25,10 @@ async function main() {
   };
 
   const db = openDb(dbPath);
+  const shopsFile = process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json');
 
   // First start: load the shops from config/shops.json (the file also used by the daily run).
   if (listShops(db).length === 0) {
-    const shopsFile = process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json');
     if (fs.existsSync(shopsFile)) {
       syncShops(db, shopsFile);
     } else {
@@ -51,7 +52,7 @@ async function main() {
   // The public site may be indexed by search engines only on its https address and once the development lock is off.
   const publicSiteUrl =
     !process.env.SITE_PASSWORD && process.env.SEO_INDEX !== 'false' && /^https:\/\//i.test(process.env.APP_URL ?? '')
-      ? (process.env.APP_URL as string).replace(/\/+$/, '')
+      ? trimSlash(process.env.APP_URL as string)
       : undefined;
   const app = await buildServer({
     db,
@@ -72,7 +73,7 @@ async function main() {
     mailer: createMailer(mailConfigFromEnv()),
     captcha: captchaFromEnv(),
     appUrl: process.env.APP_URL || `http://127.0.0.1:${port}`,
-    manualShops: () => readManualShops(process.env.SHOPS_FILE ?? path.resolve(process.cwd(), 'config', 'shops.json')),
+    manualShops: () => readManualShops(shopsFile),
   });
 
   // Registrations whose activation link was never opened are removed after 24 hours.

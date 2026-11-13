@@ -187,6 +187,7 @@ export interface StoredProduct {
 }
 
 const boolToDb = (v: boolean | null): number | null => (v === null ? null : v ? 1 : 0);
+const dbToBool = (v: number | null): boolean | null => (v === null ? null : v === 1);
 
 export function upsertProduct(
   db: DB,
@@ -243,7 +244,7 @@ export function priceHistory(db: DB, url: string, limit = 365): { currency: stri
     .all(product.id, limit) as { day: string; price: number; in_stock: number | null }[];
   return {
     currency: product.currency,
-    points: rows.reverse().map((r) => ({ day: r.day, price: r.price, inStock: r.in_stock === null ? null : r.in_stock === 1 })),
+    points: rows.reverse().map((r) => ({ day: r.day, price: r.price, inStock: dbToBool(r.in_stock) })),
   };
 }
 
@@ -277,7 +278,7 @@ export function listProducts(db: DB, filter: { shopId?: number; game?: string; i
     title: r.title,
     price: r.price,
     currency: r.currency,
-    inStock: r.in_stock === null ? null : r.in_stock === 1,
+    inStock: dbToBool(r.in_stock),
     imageUrl: r.image_url,
     firstSeen: r.first_seen,
     lastSeen: r.last_seen,
@@ -408,7 +409,7 @@ export function listFavorites(db: DB, userId: number): Favorite[] {
     price: r.pid !== null ? r.p_price : r.price,
     currency: r.p_currency ?? r.currency,
     image: r.p_image ?? r.image,
-    inStock: r.pid === null || r.p_stock === null ? null : r.p_stock === 1,
+    inStock: r.pid === null ? null : dbToBool(r.p_stock),
     tracked: r.pid !== null,
     createdAt: r.created_at,
   }));

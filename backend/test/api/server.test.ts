@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { ensureAdmin } from '../../src/auth/users';
@@ -10,7 +13,7 @@ import type { Captcha } from '../../src/api/captcha';
 const PROFILE = { firstName: 'Ivan', lastName: 'Petrov', city: 'Sofia', address: 'bul. Vitosha 1', acceptTerms: true };
 const ADMIN = { email: 'admin@test.com', password: 'admin-password' };
 
-async function setup(extra: { captcha?: Captcha } = {}) {
+async function setup(extra: { captcha?: Captcha; staticDir?: string } = {}) {
   const db = openDb(':memory:');
   ensureAdmin(db, ADMIN.email, ADMIN.password);
   const scheduler = { start: vi.fn(), stop: vi.fn() };
@@ -18,7 +21,7 @@ async function setup(extra: { captcha?: Captcha } = {}) {
   const defaults = { cron: '0 9 * * *', query: 'pokemon tcg' };
   const mails: Message[] = [];
   const mailer = { send: vi.fn(async (m: Message) => (mails.push(m), { sent: true })) };
-  const app = await buildServer({ db, service: service as never, scheduler, defaults, mailer, appUrl: 'https://app.test/', captcha: extra.captcha, security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
+  const app = await buildServer({ db, service: service as never, scheduler, defaults, mailer, appUrl: 'https://app.test/', captcha: extra.captcha, staticDir: extra.staticDir, security: { loginAttemptsPer10Min: 1000, requestsPerMinute: 10000 } });
   return { app, scheduler, service, mails, mailer, db };
 }
 
@@ -477,6 +480,37 @@ describe('API accounts', () => {
       const headers = await signIn(app);
       const res = await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { items: [{ ...item, url: 'javascript:alert(1)' }] } });
       expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe('home page and app', () => {
+    it('shows the home page for links with tracking parameters, the app only for e-mail links', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-static-'));
+      fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>APP</title>');
+      const { app } = await setup({ staticDir: dir });
+      const home = await app.inject({ method: 'GET', url: '/?fbclid=abc&utm_source=facebook' });
+      expect(home.statusCode).toBe(200);
+      expect(home.body).not.toContain('<title>APP</title>');
+      expect(home.body).toContain('id="list-view"');
+      for (const q of ['activate=x', 'reset=x', 'confirm-email=x']) {
+        expect((await app.inject({ method: 'GET', url: `/?${q}` })).body).toContain('<title>APP</title>');
+      }
+    });
+
+    it('does not show internal error details to the visitor', async () => {
+      const { app, db } = await setup();
+      const headers = await signIn(app);
+      db.exec('DROP TABLE favorites');
+      const res = await app.inject({ method: 'GET', url: '/api/favorites', headers });
+      expect(res.statusCode).toBe(500);
+      expect(res.json().error).not.toMatch(/favorites|SQLITE|no such table/i);
+      expect(res.json().error).toContain('Something went wrong');
+    });
+
+    it('is not open to other websites (no CORS headers)', async () => {
+      const { app } = await setup();
+      const res = await app.inject({ method: 'GET', url: '/api/games', headers: { origin: 'https://evil.example' } });
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
     });
   });
 });

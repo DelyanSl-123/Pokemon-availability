@@ -92,6 +92,9 @@ export function openDb(file: string): DB {
       expires_at TEXT NOT NULL
     );
 
+    -- price history and favourites look products up by their link
+    CREATE INDEX IF NOT EXISTS idx_products_url ON products (url);
+
     CREATE TABLE IF NOT EXISTS price_history (
       product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       day        TEXT NOT NULL,

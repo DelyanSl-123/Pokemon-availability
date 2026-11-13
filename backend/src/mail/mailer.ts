@@ -121,14 +121,12 @@ export function buildEmailChangeEmail(to: string, firstName: string | null, link
   });
 }
 
-const escHtml = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
 /** Tells the admin that a visitor suggested a shop on the home page. */
 export function buildShopSuggestionEmail(to: string, url: string, note: string): Message {
   const text = `A visitor suggested a shop for CollectibleMarket:\n\n${url}\n\n${note ? `Note: ${note}\n\n` : ''}Open the link only if it looks like a real shop.`;
   const html =
-    `<p>A visitor suggested a shop for CollectibleMarket:</p><p><b>${escHtml(url)}</b></p>` +
-    (note ? `<p>Note: ${escHtml(note)}</p>` : '') +
+    `<p>A visitor suggested a shop for CollectibleMarket:</p><p><b>${esc(url)}</b></p>` +
+    (note ? `<p>Note: ${esc(note)}</p>` : '') +
     '<p>Open the link only if it looks like a real shop.</p>';
   return { to, subject: 'CollectibleMarket: a shop was suggested', text, html };
 }
