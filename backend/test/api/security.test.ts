@@ -86,6 +86,20 @@ describe('bot protection on the API', () => {
     await app.close();
   });
 
+  it('lets a guest in with their own name and password', async () => {
+    const app = await setup({ sitePassword: 'secret-pass', siteUser: 'dev', guestUser: 'guest', guestPassword: 'guest-pass' });
+    const basic = (u: string, p: string) => ({ 'user-agent': BROWSER, authorization: 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64') });
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('guest', 'guest-pass') })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('dev', 'secret-pass') })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('guest', 'secret-pass') })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/api/games', headers: basic('dev', 'guest-pass') })).statusCode).toBe(401);
+    await app.close();
+    // without the owner's password there is no lock, and the guest login alone does not create one
+    const open = await setup({ guestUser: 'guest', guestPassword: 'guest-pass' });
+    expect((await open.inject({ method: 'GET', url: '/api/games', headers: { 'user-agent': BROWSER } })).statusCode).toBe(200);
+    await open.close();
+  });
+
   it('stops guessing the site password after ten wrong tries', async () => {
     const app = await setup({ sitePassword: 'secret-pass' });
     const bad = { 'user-agent': BROWSER, authorization: 'Basic ' + Buffer.from('admin:nope').toString('base64') };

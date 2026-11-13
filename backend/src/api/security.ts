@@ -76,6 +76,9 @@ export interface SecurityOptions {
   siteUrl?: string;
   /** User name for the site lock (default "admin"). */
   siteUser?: string;
+  /** A second sign-in for the site lock, to give guests (testers, friends) access without the owner's password. Needs both. */
+  guestUser?: string;
+  guestPassword?: string;
   now?: () => number;
 }
 
@@ -112,6 +115,11 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
   const logins = createRateLimiter(opts.loginAttemptsPer10Min ?? 15, 10 * 60_000, opts.now);
   const lockFails = createRateLimiter(10, 10 * 60_000, opts.now);
   const lockUser = opts.siteUser || 'admin';
+  // Everyone who may pass the lock: the owner, and the guest when one is set.
+  const lockLogins: [string, string][] = opts.sitePassword ? [[lockUser, opts.sitePassword]] : [];
+  if (opts.sitePassword && opts.guestUser && opts.guestPassword && opts.guestUser !== lockUser) {
+    lockLogins.push([opts.guestUser, opts.guestPassword]);
+  }
 
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0];
@@ -128,7 +136,9 @@ export function registerBotProtection(app: FastifyInstance, opts: SecurityOption
       return reply.header('Retry-After', '60').status(429).send({ error: 'Too many requests, slow down' });
     }
     if (opts.sitePassword) {
-      if (!siteLockOk(req.headers.authorization, lockUser, opts.sitePassword)) {
+      // Every login is checked (no early exit), so the time taken does not tell which name exists.
+      const passed = lockLogins.map(([u, p]) => siteLockOk(req.headers.authorization, u, p)).some(Boolean);
+      if (!passed) {
         // Wrong guesses are counted, so the password cannot be brute-forced.
         if (req.headers.authorization && !lockFails.allow(req.ip)) {
           return reply.header('Retry-After', '600').status(429).send('Too many wrong passwords, try again later');

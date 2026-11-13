@@ -49,6 +49,8 @@ The daily GitHub run publishes the same page to **GitHub Pages** at `https://<yo
 
 Set `SITE_PASSWORD` (and optionally `SITE_USER`, default `admin`) and the site, pages and API alike, asks for it with the browser's own sign-in box before showing anything. Wrong guesses are limited. Remove the variable to open the site again. `/api/health` stays open for the hosting platform.
 
+For guests, also set `SITE_GUEST_USER` and `SITE_GUEST_PASSWORD`: a second name and password for the same box, so the owner's password is not shared. Change or delete them to take the access away. They do nothing without `SITE_PASSWORD`.
+
 ## Public home page
 
 The home page of the web app (products, shops and games) is public: anyone can look without an account. Sign in and Register are buttons in the header. Everything that changes data (shops, games, settings, running a check) stays admin-only, and the account pages need a sign-in.
