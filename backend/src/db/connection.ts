@@ -100,6 +100,19 @@ export function openDb(file: string): DB {
       PRIMARY KEY (product_id, day)
     );
 
+    CREATE TABLE IF NOT EXISTS favorites (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      url        TEXT NOT NULL,
+      title      TEXT NOT NULL,
+      shop       TEXT NOT NULL DEFAULT '',
+      game       TEXT NOT NULL DEFAULT '',
+      price      REAL,
+      currency   TEXT NOT NULL DEFAULT '',
+      image      TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, url)
+    );
+
     CREATE TABLE IF NOT EXISTS shop_suggestions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       url        TEXT NOT NULL,

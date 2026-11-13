@@ -40,6 +40,8 @@ export interface ReportOptions {
   suggestUrl?: string;
   /** Address that returns the recorded prices of a product (GET ?url=...); adds a "Price history" chart to each card. Site only. */
   historyUrl?: string;
+  /** Address of the favourites of the signed-in visitor (GET, POST, DELETE). Without it, or signed out, favourites stay in the browser. */
+  favoritesUrl?: string;
   /** The signed-in visitor: the header shows a profile icon (and a link to the admin page) instead of Sign in / Register. */
   account?: { name: string; admin: boolean; profileUrl: string; adminUrl?: string };
   /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
@@ -201,6 +203,8 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
     '--field:#0D1016; --field-line:#2E3545; --badge-bg:rgba(255,106,61,.14); --badge-t:#FF8A63; --inv:#F1F3F7; --inv-t:#0D1016;' +
     '--shadow:0 1px 2px rgba(0,0,0,.3); --shadow-hover:0 12px 30px rgba(0,0,0,.45);';
   const suggestUrl = opts.suggestUrl && /^(https?:\/\/|\/)/i.test(opts.suggestUrl) ? opts.suggestUrl : '';
+  const favoritesUrl = opts.favoritesUrl && /^(https?:\/\/|\/)/i.test(opts.favoritesUrl) ? opts.favoritesUrl : '';
+  const HEART_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>';
   const historyUrl = opts.historyUrl && /^(https?:\/\/|\/)/i.test(opts.historyUrl) ? opts.historyUrl : '';
   const seo = opts.seo;
   const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
@@ -586,6 +590,20 @@ ${head}
   .sdlg .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
   .sdlg .acts { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
   .sdlg .msg { margin-top:12px; font-size:.9rem; min-height:1.2em; }
+  .fav { position:absolute; top:8px; left:8px; z-index:1; width:38px; height:38px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:50%; background:var(--surface); color:var(--muted); cursor:pointer; padding:0; }
+  .fav svg, .favlink svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; }
+  .fav:hover { color:var(--accent-t); border-color:var(--accent-t); }
+  .fav[aria-pressed=true] { color:#fff; background:var(--accent); border-color:var(--accent); }
+  .fav[aria-pressed=true] svg { fill:currentColor; }
+  .flags { top:auto; bottom:8px; }
+  .favlink { position:relative; text-decoration:none; color:var(--hero-text); display:inline-flex; align-items:center; justify-content:center; }
+  .favlink b { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--accent); color:#fff; font-size:.68rem; font-weight:800; line-height:18px; text-align:center; }
+  .favlink b:empty { display:none; }
+  @media (max-width:700px) { .bar .iconbtn.favlink { display:inline-flex; } }
+  #fav-grid { margin-top:18px; }
+  a.btn { text-decoration:none; display:inline-flex; align-items:center; }
+  #fav-note { margin:10px 0 0; }
+  .gone { margin-top:6px; font-size:.75rem; color:var(--muted); }
   dialog.hdlg { width:min(640px, calc(100% - 32px)); }
   .hstats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:16px; }
   .hstats div { padding:12px 14px; border-radius:12px; background:var(--field); border:1px solid var(--field-line); }
@@ -629,6 +647,7 @@ ${head}
       <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
       <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
     </button>
+    <a class="iconbtn favlink" href="#favorites" aria-label="Favourites" title="Favourites">${HEART_ICON}<b id="fav-count"></b></a>
     ${accountLink}
   </div>
 </div>
@@ -702,6 +721,17 @@ ${head}
   ${crawlList}
 </main>
 
+<main class="wrap" id="fav-view" data-url="${esc(favoritesUrl)}" data-signed="${signedIn && favoritesUrl ? '1' : ''}" hidden>
+  <div class="cmp-top">
+    <a class="btn ghost" href="#">← Back to products</a>
+    <h2>Favourites</h2>
+    <span class="count" id="fav-total"></span>
+  </div>
+  <p class="sub" id="fav-note"></p>
+  <div class="grid" id="fav-grid"></div>
+  <div class="empty" id="fav-empty" hidden>No favourites yet. Press the heart on a product to save it here.</div>
+</main>
+
 <main class="wrap" id="compare-view" hidden>
   <div class="cmp-top">
     <button type="button" class="btn ghost" id="compare-back">← Back to products</button>
@@ -739,6 +769,83 @@ ${historyDialog}
   var $ = function (id) { return document.getElementById(id); };
   var products = data.products;
   var HIST = document.getElementById('hist-dlg'); // only on the website
+
+  // ---- favourites: in the account when signed in, otherwise kept in this browser until the visitor signs in
+  var HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>';
+  var FAV_URL = $('fav-view').getAttribute('data-url');
+  var FAV_SIGNED = $('fav-view').getAttribute('data-signed') === '1';
+  var FAV_KEY = 'cm-favs';
+  var favs = {};      // link -> saved product
+  var favOrder = [];  // links, newest first
+  function favItem(p) {
+    return { url: p.url, title: p.title, shop: p.shop || '', game: p.game || '', price: typeof p.price === 'number' ? p.price : null, currency: p.currency || '', image: p.image || '' };
+  }
+  function readLocalFavs() {
+    try {
+      var v = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+      return Array.isArray(v) ? v.filter(function (x) { return x && typeof x.url === 'string' && typeof x.title === 'string'; }).slice(0, 200) : [];
+    } catch (e) { return []; }
+  }
+  function writeLocalFavs() {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(favOrder.map(function (u) { return favs[u]; }))); } catch (e) { /* private mode: kept until the page closes */ }
+  }
+  function setFavs(list) {
+    favs = {}; favOrder = [];
+    list.forEach(function (f) { if (!favs[f.url]) { favs[f.url] = f; favOrder.push(f.url); } });
+    refreshFavs();
+  }
+  function refreshFavs() {
+    Array.prototype.forEach.call(document.querySelectorAll('.fav'), function (b) {
+      var on = !!favs[b.dataset.url];
+      b.setAttribute('aria-pressed', String(on));
+      b.title = on ? 'Remove from favourites' : 'Add to favourites';
+    });
+    $('fav-count').textContent = favOrder.length ? String(favOrder.length) : '';
+    if (!$('fav-view').hidden) renderFavs();
+  }
+  function favApi(method, query, body) {
+    return fetch(FAV_URL + (query || ''), {
+      method: method,
+      credentials: 'same-origin',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { if (!r.ok) throw new Error('failed'); return r.json(); });
+  }
+  function toggleFav(p) {
+    var before = favOrder.map(function (u) { return favs[u]; });
+    var adding = !favs[p.url];
+    if (adding) { favs[p.url] = favItem(p); favOrder.unshift(p.url); }
+    else { delete favs[p.url]; favOrder = favOrder.filter(function (u) { return u !== p.url; }); }
+    refreshFavs();
+    if (!FAV_SIGNED) { writeLocalFavs(); return; }
+    (adding ? favApi('POST', '', { items: [favItem(p)] }) : favApi('DELETE', '?url=' + encodeURIComponent(p.url)))
+      .catch(function () { setFavs(before); $('fav-note').textContent = 'Could not save the change. Please try again.'; });
+  }
+  function renderFavs() {
+    var grid = $('fav-grid');
+    grid.textContent = '';
+    favOrder.forEach(function (u) {
+      var live = products.filter(function (x) { return x.url === u; })[0];
+      grid.appendChild(card(live || favs[u]));
+    });
+    $('fav-total').textContent = favOrder.length ? String(favOrder.length) : '';
+    $('fav-empty').hidden = favOrder.length > 0;
+    $('fav-note').textContent = FAV_SIGNED
+      ? 'Saved in your account.'
+      : 'Saved in this browser only. Sign in and they are added to your account automatically.';
+    refreshPicks();
+  }
+  function loadFavs() {
+    var local = readLocalFavs();
+    if (!FAV_SIGNED) { setFavs(local); return; }
+    // signed in: what was collected in this browser before signing in moves into the account
+    (local.length ? favApi('POST', '', { items: local.map(favItem) }) : favApi('GET'))
+      .then(function (list) {
+        if (local.length) { try { localStorage.removeItem(FAV_KEY); } catch (e) { /* ignore */ } }
+        setFavs(list);
+      })
+      .catch(function () { setFavs(local); });
+  }
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -941,6 +1048,21 @@ ${historyDialog}
     main.appendChild(body);
     c.appendChild(main);
 
+    var fb = el('button', 'fav');
+    fb.type = 'button';
+    fb.innerHTML = HEART;
+    fb.dataset.url = p.url;
+    fb.setAttribute('aria-pressed', String(!!favs[p.url]));
+    fb.setAttribute('aria-label', 'Favourite: ' + p.title);
+    fb.title = 'Add to favourites';
+    fb.addEventListener('click', function () { toggleFav(p); });
+    c.appendChild(fb);
+    if (idx < 0) {
+      // a favourite that is not in the latest check: no comparing, the saved details are shown
+      body.appendChild(el('div', 'gone', 'Not found in the latest check'));
+      return c;
+    }
+
     var pick = el('label', 'pick');
     var box = el('input');
     box.type = 'checkbox';
@@ -967,6 +1089,7 @@ ${historyDialog}
     Array.prototype.forEach.call(document.querySelectorAll('.card'), function (c) {
       var on = picked.indexOf(Number(c.dataset.i)) >= 0;
       var box = c.querySelector('.pick input');
+      if (!box) return;
       box.checked = on;
       box.disabled = !on && full;
       c.classList.toggle('picked', on);
@@ -1119,8 +1242,11 @@ ${historyDialog}
   function route() {
     var list = override !== undefined ? override : compareFromHash();
     var comparing = list !== null;
-    $('list-view').hidden = comparing;
+    var showFavs = !comparing && location.hash === '#favorites';
+    $('list-view').hidden = comparing || showFavs;
     $('compare-view').hidden = !comparing;
+    $('fav-view').hidden = !showFavs;
+    if (showFavs) { renderFavs(); window.scrollTo(0, 0); }
     if (comparing) {
       // the address is the source of truth on this page (it can be bookmarked or shared)
       picked = list.slice();
@@ -1204,6 +1330,7 @@ ${historyDialog}
   $('filters').addEventListener('submit', function (e) { e.preventDefault(); render(); setPanel(false); });
   $('filters').addEventListener('reset', function () { setTimeout(render, 0); });
   renderTabs();
+  loadFavs();
   buildShops();
   render();
   route();

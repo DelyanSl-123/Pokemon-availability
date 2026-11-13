@@ -155,6 +155,17 @@ describe('report menu of games', () => {
     expect(buildReportHtml(summary, { signInUrl: '/app?login' })).toContain('class="account reg"');
   });
 
+  it('has a heart on every product and a favourites page; the account is used only when signed in', () => {
+    const html = buildReportHtml(summary);
+    expect(html).toContain('id="fav-view" data-url="" data-signed=""');
+    expect(html).toContain("el('button', 'fav')");
+    expect(html).toContain('href="#favorites"');
+    const signedOut = buildReportHtml(summary, { favoritesUrl: '/api/favorites' });
+    expect(signedOut).toContain('data-url="/api/favorites" data-signed=""');
+    const signedIn = buildReportHtml(summary, { favoritesUrl: '/api/favorites', account: { name: 'Ivan', admin: false, profileUrl: '/app?account' } });
+    expect(signedIn).toContain('data-url="/api/favorites" data-signed="1"');
+  });
+
   it('adds the price history chart only when an address for it is given', () => {
     expect(buildReportHtml(summary)).not.toContain('id="hist-dlg"');
     expect(buildReportHtml(summary, { historyUrl: '/api/price-history' })).toContain('id="hist-dlg"');

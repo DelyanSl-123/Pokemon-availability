@@ -39,6 +39,9 @@ import {
   listGames,
   listProducts,
   listRuns,
+  addFavorites,
+  listFavorites,
+  removeFavorite,
   priceHistory,
   addShopSuggestion,
   listShopSuggestions,
@@ -110,6 +113,28 @@ function readCookie(req: FastifyRequest, name: string): string | undefined {
 
 const PHONE_RE = /^(\+?[0-9][0-9 ()-]{5,19})?$/;
 const PHONE_MESSAGE = 'Enter a valid phone number (digits, spaces, + ( ) -)';
+
+const httpUrl = z
+  .string()
+  .max(2000)
+  .refine((v) => /^https?:\/\//i.test(v), { message: 'Not a web address' });
+
+const favoritesSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        url: httpUrl,
+        title: z.string().trim().min(1).max(500),
+        shop: z.string().max(200).optional(),
+        game: z.string().max(60).optional(),
+        price: z.number().finite().nonnegative().nullable().optional(),
+        currency: z.string().max(10).optional(),
+        image: z.union([httpUrl, z.literal('')]).optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
 
 const suggestionSchema = z.object({
   url: z
@@ -386,7 +411,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   /** Everything stored about the person, as a downloadable file. */
   app.get('/api/account/export', async (req, reply) => {
     reply.header('Content-Disposition', 'attachment; filename="my-collectiblemarket-data.json"');
-    return { exportedAt: new Date().toISOString(), account: req.user };
+    return { exportedAt: new Date().toISOString(), account: req.user, favorites: listFavorites(deps.db, req.user!.id) };
   });
 
   app.delete('/api/account', async (req, reply) => {
@@ -503,6 +528,22 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   });
 
   /* ---- settings ---- */
+  /* ---- favourites (every signed-in visitor has a list of their own) ---- */
+
+  app.get('/api/favorites', async (req) => listFavorites(deps.db, req.user!.id));
+
+  // Adds one product (the heart on a card) or many at once (the ones kept in the browser before signing in).
+  app.post('/api/favorites', async (req) => {
+    addFavorites(deps.db, req.user!.id, favoritesSchema.parse(req.body).items);
+    return listFavorites(deps.db, req.user!.id);
+  });
+
+  app.delete('/api/favorites', async (req) => {
+    const { url } = z.object({ url: z.string().min(1).max(2000) }).parse(req.query);
+    removeFavorite(deps.db, req.user!.id, url);
+    return { ok: true };
+  });
+
   /* ---- shops suggested by visitors ---- */
 
   // Open to everyone (the form is on the public home page); limited per address in the bot protection.
@@ -564,6 +605,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       signInUrl: '/app?login',
       suggestUrl: '/api/suggestions',
       historyUrl: '/api/price-history',
+      favoritesUrl: '/api/favorites',
       ...(viewer
         ? { account: { name: viewer.firstName?.trim() || 'Account', admin: viewer.role === 'admin', profileUrl: '/app?account', adminUrl: '/app' } }
         : {}),

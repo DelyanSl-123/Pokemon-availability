@@ -325,3 +325,91 @@ export function listShopSuggestions(db: DB, limit = 200): ShopSuggestion[] {
 export function deleteShopSuggestion(db: DB, id: number): boolean {
   return db.prepare('DELETE FROM shop_suggestions WHERE id = ?').run(id).changes > 0;
 }
+
+/* ---- favourite products of a signed-in visitor ---- */
+
+/** What the page knows about a product when the heart is clicked; kept so the favourite still shows if the shop drops it. */
+export interface FavoriteInput {
+  url: string;
+  title: string;
+  shop?: string;
+  game?: string;
+  price?: number | null;
+  currency?: string;
+  image?: string;
+}
+
+export interface Favorite {
+  url: string;
+  title: string;
+  shop: string;
+  game: string;
+  price: number | null;
+  currency: string;
+  image: string;
+  inStock: boolean | null;
+  /** False when the product is no longer found in the shop's list (the saved details are shown). */
+  tracked: boolean;
+  createdAt: string;
+}
+
+export const MAX_FAVORITES = 500;
+
+/** Adds the products that are not saved yet (up to the limit per account). */
+export function addFavorites(db: DB, userId: number, items: FavoriteInput[]): void {
+  const count = (db.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id = ?').get(userId) as { n: number }).n;
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO favorites (user_id, url, title, shop, game, price, currency, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  let room = MAX_FAVORITES - count;
+  for (const it of items) {
+    if (room <= 0) break;
+    const info = insert.run(userId, it.url, it.title, it.shop ?? '', it.game ?? '', it.price ?? null, it.currency ?? '', it.image ?? '');
+    if (info.changes > 0) room -= 1;
+  }
+}
+
+export function removeFavorite(db: DB, userId: number, url: string): boolean {
+  return db.prepare('DELETE FROM favorites WHERE user_id = ? AND url = ?').run(userId, url).changes > 0;
+}
+
+/** Newest first; price, stock and picture come from the latest check when the product is still tracked. */
+export function listFavorites(db: DB, userId: number): Favorite[] {
+  const rows = db
+    .prepare(
+      `SELECT f.url, f.title, f.shop, f.game, f.price, f.currency, f.image, f.created_at,
+              p.id AS pid, p.title AS p_title, p.price AS p_price, p.currency AS p_currency, p.in_stock AS p_stock, p.image_url AS p_image
+       FROM favorites f
+       LEFT JOIN products p ON p.id = (SELECT id FROM products WHERE url = f.url ORDER BY last_seen DESC LIMIT 1)
+       WHERE f.user_id = ?
+       ORDER BY f.created_at DESC, f.rowid DESC`,
+    )
+    .all(userId) as {
+    url: string;
+    title: string;
+    shop: string;
+    game: string;
+    price: number | null;
+    currency: string;
+    image: string;
+    created_at: string;
+    pid: number | null;
+    p_title: string | null;
+    p_price: number | null;
+    p_currency: string | null;
+    p_stock: number | null;
+    p_image: string | null;
+  }[];
+  return rows.map((r) => ({
+    url: r.url,
+    title: r.p_title ?? r.title,
+    shop: r.shop,
+    game: r.game,
+    price: r.pid !== null ? r.p_price : r.price,
+    currency: r.p_currency ?? r.currency,
+    image: r.p_image ?? r.image,
+    inStock: r.pid === null || r.p_stock === null ? null : r.p_stock === 1,
+    tracked: r.pid !== null,
+    createdAt: r.created_at,
+  }));
+}
