@@ -43,6 +43,8 @@ export interface ReportOptions {
   historyUrl?: string;
   /** Address that counts a product opened in its shop (POST {url}); feeds "most popular". Site only. */
   clickUrl?: string;
+  /** The page of one game (/games/<slug>): it opens with this game selected, with or without search-engine mode. */
+  game?: { slug: string; name: string };
   /** The most popular product links of every game (best first); the home page shows them first. */
   popular?: Record<string, string[]>;
   /** Address of the favourites of the signed-in visitor (GET, POST, DELETE). Without it, or signed out, favourites stay in the browser. */
@@ -244,13 +246,14 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   const seo = opts.seo;
   // The logo leads to the home page: the site's own address, or the top of this page for the report file.
   const homeHref = seo ? `${trimSlash(seo.baseUrl)}/` : suggestUrl || favoritesUrl || opts.account ? '/' : '#';
-  const seoGame = seo?.game && /^[a-z0-9-]+$/.test(seo.game.slug) ? seo.game : undefined;
+  const pageGame = opts.game ?? seo?.game;
+  const seoGame = pageGame && /^[a-z0-9-]+$/.test(pageGame.slug) ? pageGame : undefined;
   const initialGame = seoGame ? seoGame.slug : '';
   const head = seo ? seoHead(seo.baseUrl, seoGame, games, summary.products, label) : '';
   const robotsMeta = seo
     ? '<meta name="robots" content="index, follow, max-image-preview:large">'
     : '<meta name="robots" content="noindex, nofollow, noarchive">';
-  const pageTitle = seo ? seoTitle(seoGame) : `CollectibleMarket · ${when}`;
+  const pageTitle = seo ? seoTitle(seoGame) : seoGame ? `${seoGame.name} · CollectibleMarket` : `CollectibleMarket · ${when}`;
   const h1Text = seoGame
     ? `${seoGame.name} TCG products in Bulgarian shops: prices and availability`
     : 'Trading card games in Bulgarian shops: Pokémon, One Piece, Yu-Gi-Oh! and Magic prices and availability';
