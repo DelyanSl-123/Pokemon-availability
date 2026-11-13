@@ -44,7 +44,16 @@ export interface ReportOptions {
   /** Address of the favourites of the signed-in visitor (GET, POST, DELETE). Without it, or signed out, favourites stay in the browser. */
   favoritesUrl?: string;
   /** The signed-in visitor: the header shows a profile icon (and a link to the admin page) instead of Sign in / Register. */
-  account?: { name: string; email?: string; admin: boolean; profileUrl: string; adminUrl?: string; logoutUrl?: string };
+  account?: {
+    name: string;
+    email?: string;
+    admin: boolean;
+    profileUrl: string;
+    adminUrl?: string;
+    logoutUrl?: string;
+    /** Set when the visitor has not accepted the current Terms: a window asks them to (or to sign out). */
+    termsPrompt?: { version: string; acceptUrl: string; first?: boolean };
+  };
   /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
   seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
 }
@@ -262,6 +271,19 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
       '<h2 id="hist-title">Price history</h2><p class="sub" id="hist-name"></p>' +
       '<div class="hstats" id="hist-stats"></div><div class="hchart" id="hist-chart"></div><p class="sub" id="hist-note"></p>' +
       '<div class="acts"><button type="button" class="btn ghost" id="hist-close">Close</button></div></dialog>'
+    : '';
+  const tp = signedIn?.termsPrompt && safeLink(signedIn.termsPrompt.acceptUrl) ? signedIn.termsPrompt : undefined;
+  const termsDialog = tp
+    ? `<dialog class="sdlg tdlg" id="terms-dlg" aria-labelledby="terms-title" data-url="${esc(safeLink(tp.acceptUrl))}" data-version="${esc(tp.version)}">` +
+      `<h2 id="terms-title">${tp.first ? 'Please accept our Terms' : 'Our Terms have changed'}</h2>` +
+      `<p class="sub">${tp.first
+        ? 'To keep using your account, please read and accept the Terms and Conditions and the Privacy Policy.'
+        : `We updated the Terms and Conditions and the Privacy Policy (version ${esc(tp.version)}). Please read them and accept the new version to keep using your account.`}</p>` +
+      '<p class="tlinks"><a href="/terms.html" target="_blank" rel="noopener">Terms and Conditions ↗</a><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy ↗</a></p>' +
+      '<label class="tcheck"><input type="checkbox" id="terms-ok"> <span>I have read and agree to the Terms and Conditions and the Privacy Policy</span></label>' +
+      '<div class="msg" id="terms-msg" role="status"></div>' +
+      '<div class="acts"><button type="button" class="btn ghost" id="terms-out">Sign out</button><button type="button" class="btn primary" id="terms-accept" disabled>Accept</button></div>' +
+      '</dialog>'
     : '';
 
   return `<!doctype html>
@@ -629,6 +651,10 @@ ${head}
   a.btn { text-decoration:none; display:inline-flex; align-items:center; }
   #fav-note { margin:10px 0 0; }
   .gone { margin-top:6px; font-size:.75rem; color:var(--muted); }
+  .tlinks { display:flex; flex-wrap:wrap; gap:8px 20px; margin:14px 0 0; font-weight:700; }
+  .tcheck { display:flex; align-items:flex-start; gap:10px; margin-top:16px; font-weight:600; cursor:pointer; }
+  .tcheck input { width:20px; height:20px; margin:2px 0 0; flex:none; accent-color:var(--accent); }
+  .sdlg .btn.primary:disabled { opacity:.5; cursor:not-allowed; }
   dialog.hdlg { width:min(640px, calc(100% - 32px)); }
   .hstats { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:16px; }
   .hstats div { padding:12px 14px; border-radius:12px; background:var(--field); border:1px solid var(--field-line); }
@@ -778,6 +804,7 @@ ${head}
   <div class="wrap copy">© CollectibleMarket. All trademarks belong to their owners.</div>
 </footer>
 ${suggestDialog}
+${termsDialog}
 ${historyDialog}
 
 <div class="cmpbar" id="cmpbar" hidden>
@@ -1454,6 +1481,39 @@ ${historyDialog}
       if (!url) { home(); return; }
       fetch(url, { method: 'POST', credentials: 'same-origin' }).then(home, home);
     });
+  }
+
+  // new Terms: a window that can only be closed by accepting them or signing out
+  var tdlg = $('terms-dlg');
+  if (tdlg) {
+    var tok = $('terms-ok'), tacc = $('terms-accept'), tmsg = $('terms-msg');
+    var accepted = false;
+    // Escape must not close it: browsers do not always honour the cancel block, so it opens again
+    tdlg.addEventListener('cancel', function (e) { e.preventDefault(); });
+    tdlg.addEventListener('close', function () { if (!accepted && tdlg.showModal) tdlg.showModal(); });
+    tok.addEventListener('change', function () { tacc.disabled = !tok.checked; });
+    tacc.addEventListener('click', function () {
+      tacc.disabled = true;
+      tmsg.className = 'msg'; tmsg.textContent = 'Saving\u2026';
+      fetch(tdlg.getAttribute('data-url'), {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: tdlg.getAttribute('data-version') })
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, body: j }; });
+      }).then(function (r) {
+        if (r.ok) { accepted = true; tdlg.close(); return; }
+        tacc.disabled = !tok.checked;
+        tmsg.className = 'msg err'; tmsg.textContent = (r.body && r.body.error) || 'Could not save. Please try again.';
+      }).catch(function () {
+        tacc.disabled = !tok.checked;
+        tmsg.className = 'msg err'; tmsg.textContent = 'Could not save. Please check your connection and try again.';
+      });
+    });
+    $('terms-out').addEventListener('click', function () {
+      var out = $('acct-out');
+      if (out) out.click(); else location.assign('/');
+    });
+    if (tdlg.showModal) tdlg.showModal(); else tdlg.setAttribute('open', '');
   }
 
   // "Suggest a shop" form (only on the website)

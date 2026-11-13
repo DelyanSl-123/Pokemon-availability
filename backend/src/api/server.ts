@@ -4,6 +4,8 @@ import * as cron from 'node-cron';
 import { z } from 'zod';
 import {
   ACTIVATION_HOURS,
+  TERMS_VERSION,
+  acceptCurrentTerms,
   EMAIL_CHANGE_HOURS,
   RESET_HOURS,
   activateWithToken,
@@ -303,7 +305,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const linkTo = (query: string, token: string) => `${trimSlash(deps.appUrl)}/?${query}=${token}`;
 
   /** What the browser needs to know before showing the forms. */
-  app.get('/api/config', async () => ({ turnstileSiteKey: deps.captcha?.siteKey ?? null }));
+  app.get('/api/config', async () => ({ turnstileSiteKey: deps.captcha?.siteKey ?? null, termsVersion: TERMS_VERSION }));
 
   async function sendActivation(email: string, firstName: string | null, userId: number): Promise<boolean> {
     const link = linkTo('activate', createActivationToken(deps.db, userId));
@@ -408,6 +410,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     const link = linkTo('confirm-email', createEmailChange(deps.db, req.user!.id, newEmail));
     const result = await deps.mailer.send(buildEmailChangeEmail(newEmail.trim(), req.user!.firstName, link, EMAIL_CHANGE_HOURS));
     return { emailSent: result.sent };
+  });
+
+  // A signed-in person accepts the Terms after they changed (the window shown when their accepted version is older).
+  // The version they saw must be the current one, so nobody accepts a text they were not shown.
+  app.post('/api/account/accept-terms', async (req, reply) => {
+    const { version } = z.object({ version: z.string().max(20) }).parse(req.body);
+    if (version !== TERMS_VERSION) {
+      return reply.status(409).send({ error: 'The Terms changed again. Please reload the page and read the new version.' });
+    }
+    return { user: acceptCurrentTerms(deps.db, req.user!.id) };
   });
 
   /** Everything stored about the person, as a downloadable file. */
@@ -618,6 +630,9 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
               profileUrl: '/app?account',
               adminUrl: '/app',
               logoutUrl: '/api/auth/logout',
+              ...(viewer.termsVersion !== TERMS_VERSION
+                ? { termsPrompt: { version: TERMS_VERSION, acceptUrl: '/api/account/accept-terms', first: viewer.termsVersion === null } }
+                : {}),
             },
           }
         : {}),
