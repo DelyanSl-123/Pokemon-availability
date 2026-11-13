@@ -612,3 +612,143 @@ button.link {
     padding: 22px 18px;
   }
 }
+
+/* top bar of the app pages with the profile menu (same menu as on the home page) */
+.sitebar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+}
+.sitebar-in {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sitebar .brand {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.sitebar .brand svg {
+  width: 38px;
+  height: 38px;
+}
+.authpage.withbar {
+  padding-top: 32px;
+}
+.acct {
+  position: relative;
+}
+.acct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.acct-btn:hover {
+  border-color: var(--muted);
+}
+.acct-btn svg,
+.acct-menu svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.acct-btn .chev {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+.acct-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  min-width: 240px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(16, 19, 28, 0.16);
+}
+.acct-who {
+  padding: 10px 12px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.acct-who span {
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acct-menu a,
+.acct-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+}
+.acct-menu a:hover,
+.acct-menu button:hover {
+  background: var(--field);
+}
+.acct-menu a[aria-current='page'] {
+  color: var(--accent-t);
+}
+.acct-menu .acct-out {
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 10px 10px;
+  color: var(--bad);
+}
+@media (max-width: 600px) {
+  .sitebar-in {
+    padding: 0 16px;
+    height: 64px;
+  }
+  .acct-name {
+    display: none;
+  }
+}

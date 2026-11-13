@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type Game, type Product, type RunSummary, type Settings, type Shop, type ShopSuggestion, type User } from './api/client';
+import { SiteHeader } from './components/SiteHeader';
 import { AccountPanel } from './components/AccountPanel';
 import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
@@ -83,7 +84,6 @@ export default function App() {
 
 function Tracker({
   user,
-  onUserChange,
   onSignIn,
   onSignOut,
   onSessionExpired,
@@ -95,7 +95,6 @@ function Tracker({
   onSignOut: () => void;
   onSessionExpired: () => void;
 }) {
-  const [showAccount, setShowAccount] = useState(false);
   const isAdmin = user?.role === 'admin';
   const [shops, setShops] = useState<Shop[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -191,38 +190,17 @@ function Tracker({
   const shownShops = shops.filter((s) => inGame(s.game));
 
   return (
+    <>
+    {user && <SiteHeader user={user} onSignOut={onSignOut} current={isAdmin ? 'admin' : undefined} />}
     <main>
-      {showAccount && user && (
-        <AccountPanel
-          user={user}
-          onClose={() => setShowAccount(false)}
-          onUserChange={onUserChange}
-          onDeleted={onSessionExpired}
-        />
-      )}
       <header className="top">
         <div>
           <h1>Trading Card Tracker</h1>
-          <a className="link" href="/">
-            ← Public page
-          </a>
           <p className="sub">Checks your shops once a day for Pokémon, One Piece, Yu-Gi-Oh!, Magic and other card games.</p>
         </div>
         <div className="side">
           <div className="account">
-            {user ? (
-              <>
-                <span>
-                  {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
-                </span>
-                <button className="link" onClick={() => setShowAccount(true)}>
-                  My account
-                </button>
-                <button className="link" onClick={onSignOut}>
-                  Sign out
-                </button>
-              </>
-            ) : (
+            {user ? null : (
               <>
                 <button className="link" onClick={() => onSignIn('login')}>
                   Sign in
@@ -502,5 +480,6 @@ function Tracker({
         </section>
       )}
     </main>
+    </>
   );
 }

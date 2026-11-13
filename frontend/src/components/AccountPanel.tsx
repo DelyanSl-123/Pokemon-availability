@@ -1,4 +1,4 @@
-import { Brand } from './Brand';
+import { SiteHeader } from './SiteHeader';
 import { Req } from './Req';
 import { FormEvent, useState } from 'react';
 import { api, type User } from '../api/client';
@@ -103,28 +103,11 @@ export function AccountPanel({
     <>
         <div className="row">
           {page ? <h1>My account</h1> : <h2>My account</h2>}
-          <div className="row">
-            {page && (
-              <a className="btnlink" href="/#favorites">
-                My favourites
-              </a>
-            )}
-            {page && isAdmin && (
-              <a className="btnlink" href="/app">
-                Admin page
-              </a>
-            )}
-            {page && onSignOut && (
-              <button type="button" onClick={onSignOut}>
-                Sign out
-              </button>
-            )}
-            {!page && (
-              <button type="button" className="link" onClick={onClose}>
-                Close
-              </button>
-            )}
-          </div>
+          {!page && (
+            <button type="button" className="link" onClick={onClose}>
+              Close
+            </button>
+          )}
         </div>
         <p className="sub">
           {user.email} <span className={`badge ${isAdmin ? 'ok' : 'muted'}`}>{isAdmin ? 'Admin' : 'User'}</span>
@@ -244,15 +227,12 @@ export function AccountPanel({
 
   if (page) {
     return (
-      <main className="authpage wide">
-        <Brand />
-        <section className="authcard panel-page">{body}</section>
-        <p className="authback">
-          <button type="button" className="link" onClick={onClose}>
-            ← Back to the home page
-          </button>
-        </p>
-      </main>
+      <>
+        {onSignOut && <SiteHeader user={user} onSignOut={onSignOut} current="account" />}
+        <main className="authpage wide withbar">
+          <section className="authcard panel-page">{body}</section>
+        </main>
+      </>
     );
   }
   return (

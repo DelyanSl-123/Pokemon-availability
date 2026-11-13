@@ -607,7 +607,16 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       historyUrl: '/api/price-history',
       favoritesUrl: '/api/favorites',
       ...(viewer
-        ? { account: { name: viewer.firstName?.trim() || 'Account', admin: viewer.role === 'admin', profileUrl: '/app?account', adminUrl: '/app' } }
+        ? {
+            account: {
+              name: viewer.firstName?.trim() || viewer.email.split('@')[0],
+              email: viewer.email,
+              admin: viewer.role === 'admin',
+              profileUrl: '/app?account',
+              adminUrl: '/app',
+              logoutUrl: '/api/auth/logout',
+            },
+          }
         : {}),
       manualShops,
       ...(deps.siteUrl ? { seo: { baseUrl: deps.siteUrl, game } } : {}),

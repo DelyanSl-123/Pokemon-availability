@@ -43,7 +43,7 @@ export interface ReportOptions {
   /** Address of the favourites of the signed-in visitor (GET, POST, DELETE). Without it, or signed out, favourites stay in the browser. */
   favoritesUrl?: string;
   /** The signed-in visitor: the header shows a profile icon (and a link to the admin page) instead of Sign in / Register. */
-  account?: { name: string; admin: boolean; profileUrl: string; adminUrl?: string };
+  account?: { name: string; email?: string; admin: boolean; profileUrl: string; adminUrl?: string; logoutUrl?: string };
   /** Public site: makes the page indexable (meta tags, canonical, structured data). Without it the page is noindex. */
   seo?: { baseUrl: string; /** the page of one game; omitted for the home page */ game?: { slug: string; name: string } };
 }
@@ -143,9 +143,23 @@ export function buildReportHtml(summary: RunSummary, opts: ReportOptions = {}): 
   const okLink = (u: string | undefined) => (u && /^(https?:\/\/|\/)/i.test(u) ? u : '');
   const USER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>';
   const signedIn = opts.account && okLink(opts.account.profileUrl) ? opts.account : undefined;
+  const MENU_ICONS = {
+    heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/></svg>',
+    out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg>',
+  };
+  // signed in: the profile icon opens a menu (favourites, my account, admin page, sign out)
   const accountLink = signedIn
-    ? (signedIn.admin && okLink(signedIn.adminUrl) ? `<a class="account adm" href="${esc(okLink(signedIn.adminUrl))}"><span>Admin</span></a>` : '') +
-      `<a class="account me" href="${esc(signedIn.profileUrl)}" title="My account" aria-label="My account: ${esc(signedIn.name)}">${USER_ICON}<span>${esc(signedIn.name)}</span></a>`
+    ? '<div class="acct" id="acct">' +
+      `<button type="button" class="acct-btn" id="acct-btn" aria-haspopup="true" aria-expanded="false" aria-controls="acct-menu" aria-label="Account menu: ${esc(signedIn.name)}">` +
+      `${USER_ICON}<span class="acct-name">${esc(signedIn.name)}</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>` +
+      '<div class="acct-menu" id="acct-menu" hidden>' +
+      `<div class="acct-who"><b>${esc(signedIn.name)}</b>${signedIn.email ? `<span>${esc(signedIn.email)}</span>` : ''}</div>` +
+      `<a href="#favorites">${MENU_ICONS.heart}My favourites</a>` +
+      `<a href="${esc(signedIn.profileUrl)}">${USER_ICON}My account</a>` +
+      (signedIn.admin && okLink(signedIn.adminUrl) ? `<a href="${esc(okLink(signedIn.adminUrl))}">${MENU_ICONS.shield}Admin page</a>` : '') +
+      `<button type="button" class="acct-out" id="acct-out" data-url="${esc(okLink(signedIn.logoutUrl))}">${MENU_ICONS.out}Sign out</button>` +
+      '</div></div>'
     : signIn
     ? `<a class="account" href="${esc(signIn)}" title="Sign in / Register" aria-label="Sign in or register">` +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>' +
@@ -489,6 +503,19 @@ ${head}
   .account.reg { margin-left:0; padding:0 20px; background:var(--accent); color:#fff; }
   @media (min-width:701px) { .account:not(.reg) span { display:inline; } .account:not(.reg) { padding:0 14px; } }
   .account:not(.reg) { display:inline-flex; }
+  .acct { position:relative; flex:none; }
+  .acct-btn { display:inline-flex; align-items:center; gap:8px; height:44px; padding:0 12px 0 10px; border:1px solid var(--hero-line); border-radius:999px; background:var(--surface); color:var(--hero-text); font:inherit; font-weight:700; font-size:.95rem; cursor:pointer; }
+  .acct-btn:hover { border-color:var(--muted); }
+  .acct-btn svg, .acct-menu svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .acct-btn .chev { width:16px; height:16px; color:var(--muted); }
+  .acct-name { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .acct-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:60; min-width:240px; padding:8px; border:1px solid var(--line); border-radius:16px; background:var(--surface); box-shadow:0 12px 32px rgba(16,19,28,.16); }
+  .acct-who { padding:10px 12px 12px; margin-bottom:6px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; }
+  .acct-who span { font-size:.82rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; }
+  .acct-menu a, .acct-menu button { display:flex; align-items:center; gap:12px; width:100%; min-height:44px; padding:0 12px; border:0; border-radius:10px; background:none; color:var(--text); font:inherit; font-weight:600; font-size:.95rem; text-decoration:none; text-align:left; cursor:pointer; }
+  .acct-menu a:hover, .acct-menu button:hover { background:var(--field); color:var(--text); }
+  .acct-menu .acct-out { margin-top:6px; border-top:1px solid var(--line); border-radius:0 0 10px 10px; color:var(--bad); }
+  @media (max-width:700px) { .acct-name, .acct-btn .chev { display:none; } .acct-btn { width:44px; padding:0; justify-content:center; } }
   .account.me { border:1px solid var(--hero-line); border-radius:999px; padding:0 16px 0 10px; max-width:220px; }
   .account.me span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .account.adm span { display:inline; }
@@ -1413,6 +1440,23 @@ ${historyDialog}
       .catch(function () { $('hist-note').textContent = 'Could not load the price history. Please try again.'; });
   }
   if (HIST) $('hist-close').addEventListener('click', function () { if (HIST.close) HIST.close(); else HIST.removeAttribute('open'); });
+
+  // profile menu (signed in): opens on the icon, closes on a click outside, Escape or a choice
+  var acctBtn = $('acct-btn');
+  if (acctBtn) {
+    var acctMenu = $('acct-menu');
+    var setAcct = function (open) { acctMenu.hidden = !open; acctBtn.setAttribute('aria-expanded', String(open)); };
+    acctBtn.addEventListener('click', function () { setAcct(acctMenu.hidden); });
+    document.addEventListener('mousedown', function (e) { if (!acctMenu.hidden && !$('acct').contains(e.target)) setAcct(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !acctMenu.hidden) { setAcct(false); acctBtn.focus(); } });
+    acctMenu.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('a')) setAcct(false); });
+    $('acct-out').addEventListener('click', function () {
+      var url = this.getAttribute('data-url');
+      var home = function () { location.assign('/'); };
+      if (!url) { home(); return; }
+      fetch(url, { method: 'POST', credentials: 'same-origin' }).then(home, home);
+    });
+  }
 
   // "Suggest a shop" form (only on the website)
   var dlg = $('suggest-dlg');
