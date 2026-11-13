@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { TERMS_VERSION, ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
-import { upsertProduct } from '../../src/db/repository';
+import { popularProducts, upsertProduct } from '../../src/db/repository';
 import { buildServer } from '../../src/api/server';
 import type { Message } from '../../src/mail/mailer';
 import type { Captcha } from '../../src/api/captcha';
@@ -533,6 +533,32 @@ describe('API accounts', () => {
       db.prepare("UPDATE users SET terms_version = '0.9'").run();
       expect((await app.inject({ method: 'GET', url: '/', headers })).body).toContain('Our Terms have changed');
       expect((await app.inject({ method: 'POST', url: '/api/account/accept-terms', payload: { version: TERMS_VERSION } })).statusCode).toBe(401);
+    });
+  });
+
+  describe('popular products', () => {
+    it('counts openings of tracked products only and ranks them with favourites', async () => {
+      const { app, db } = await setup();
+      const headers = await signIn(app);
+      const shop = (await app.inject({ method: 'POST', url: '/api/shops', headers, payload: { url: 'www.example.bg' } })).json();
+      const make = (n: number) => ({ url: `https://www.example.bg/p/${n}`, title: `P${n}`, price: 10, currency: 'EUR', inStock: true, imageUrl: null });
+      for (const n of [1, 2, 3]) upsertProduct(db, shop.id, make(n), new Date().toISOString());
+
+      const click = (url: string, asText = false) =>
+        app.inject({
+          method: 'POST',
+          url: '/api/clicks',
+          headers: asText ? { 'content-type': 'text/plain' } : {},
+          payload: asText ? JSON.stringify({ url }) : { url },
+        });
+      expect((await click(make(2).url)).statusCode).toBe(204);
+      expect((await click(make(2).url, true)).statusCode).toBe(204); // as navigator.sendBeacon sends it
+      expect((await click('https://unknown.bg/x')).statusCode).toBe(204);
+      expect((await click('not a link')).statusCode).toBe(400);
+      await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { items: [{ url: make(3).url, title: 'P3' }] } });
+
+      expect(popularProducts(db)).toEqual({ pokemon: [make(3).url, make(2).url] });
+      expect(db.prepare('SELECT COUNT(*) AS n FROM product_clicks').get()).toEqual({ n: 1 });
     });
   });
 });

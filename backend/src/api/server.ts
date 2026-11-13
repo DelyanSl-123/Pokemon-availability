@@ -40,6 +40,8 @@ import {
   listGames,
   listProducts,
   listRuns,
+  popularProducts,
+  recordProductClick,
   addFavorites,
   listFavorites,
   removeFavorite,
@@ -100,7 +102,7 @@ declare module 'fastify' {
 
 const SESSION_COOKIE = 'cm_session';
 /** API paths that work without being signed in. */
-const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config', '/api/suggestions']);
+const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/api/auth/activate', '/api/auth/resend', '/api/auth/forgot', '/api/auth/reset', '/api/auth/confirm-email', '/api/config', '/api/suggestions', '/api/clicks']);
 
 /** Read-only data that anyone may look at without signing in: the home page of the site. */
 const PUBLIC_GET_PATHS = new Set(['/api/shops', '/api/games', '/api/products', '/api/runs', '/api/price-history']);
@@ -238,6 +240,8 @@ const idParam = z.object({ id: z.coerce.number().int().positive() });
 export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, trustProxy: deps.trustProxy ?? false });
   registerBotProtection(app, deps.security);
+  // navigator.sendBeacon (the click counter) sends its JSON as text/plain
+  app.addContentTypeParser('text/plain', { parseAs: 'string', bodyLimit: 4096 }, (_req, body, done) => done(null, body));
   // No CORS: the app and the API are served from the same address (Vite proxies /api in development),
   // so other websites cannot call the API from a visitor's browser.
 
@@ -557,6 +561,23 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
 
+  /* ---- popularity ---- */
+
+  // A product was opened in its shop (sent by the home page; anyone, limited per address by the bot protection).
+  app.post('/api/clicks', async (req, reply) => {
+    let body: unknown = req.body;
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return reply.status(400).send({ error: 'Invalid request' });
+      }
+    }
+    const { url } = z.object({ url: httpUrl }).parse(body);
+    recordProductClick(deps.db, url);
+    return reply.status(204).send();
+  });
+
   /* ---- shops suggested by visitors ---- */
 
   // Open to everyone (the form is on the public home page); limited per address in the bot protection.
@@ -620,6 +641,8 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
       signInUrl: '/app?login',
       suggestUrl: '/api/suggestions',
       historyUrl: '/api/price-history',
+      clickUrl: '/api/clicks',
+      popular: popularProducts(deps.db),
       favoritesUrl: '/api/favorites',
       ...(viewer
         ? {
