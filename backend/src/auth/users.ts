@@ -238,6 +238,12 @@ export function updateProfile(db: DB, userId: number, p: Profile): User {
   return toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRow);
 }
 
+/** Records that the person accepted the current Terms and Privacy Policy (now). */
+export function acceptCurrentTerms(db: DB, userId: number): User {
+  db.prepare('UPDATE users SET terms_accepted_at = ?, terms_version = ? WHERE id = ?').run(new Date().toISOString(), TERMS_VERSION, userId);
+  return toUser(db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRow);
+}
+
 /** Changes the password and ends every other session of the account (the current one stays). */
 export function changePassword(db: DB, userId: number, newPassword: string, keepSessionToken?: string): void {
   db.transaction(() => {

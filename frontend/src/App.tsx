@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type Game, type Product, type RunSummary, type Settings, type Shop, type ShopSuggestion, type User } from './api/client';
 import { SiteHeader } from './components/SiteHeader';
+import { TermsPrompt } from './components/TermsPrompt';
 import { AccountPanel } from './components/AccountPanel';
 import { AuthForm } from './components/AuthForm';
 import { ShopRow } from './components/ShopRow';
@@ -19,6 +20,12 @@ export default function App() {
     if (q.has('register')) return 'register';
     return q.has('activate') || q.has('reset') || q.has('login') ? 'login' : null;
   });
+
+  /** The current version of the Terms (from the server); a signed-in person with an older one is asked to accept it. */
+  const [termsVersion, setTermsVersion] = useState<string | null>(null);
+  useEffect(() => {
+    api.config().then((c) => setTermsVersion(c.termsVersion), () => undefined);
+  }, []);
 
   /** /app?account = the profile page ("My account"). */
   const [wantsAccount] = useState(() => new URLSearchParams(window.location.search).has('account'));
@@ -52,6 +59,9 @@ export default function App() {
         <div className={`banner ${flash.ok ? 'ok' : 'error'}`} onClick={() => setFlash(null)}>
           {flash.text}
         </div>
+      )}
+      {user && termsVersion && user.termsVersion !== termsVersion && (
+        <TermsPrompt user={user} version={termsVersion} onAccepted={setUser} onSignOut={signOut} />
       )}
       {user === null && (auth || wantsAccount) ? (
         <AuthForm

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { ensureAdmin } from '../../src/auth/users';
+import { TERMS_VERSION, ensureAdmin } from '../../src/auth/users';
 import { openDb } from '../../src/db/connection';
 import { upsertProduct } from '../../src/db/repository';
 import { buildServer } from '../../src/api/server';
@@ -329,7 +329,7 @@ describe('API accounts', () => {
     it('ignores honeypot registrations and requires the CAPTCHA when one is configured', async () => {
       const verify = vi.fn(async (t: string | undefined) => t === 'good');
       const { app, mails } = await setup({ captcha: { siteKey: 'site-key', verify } });
-      expect((await app.inject({ method: 'GET', url: '/api/config' })).json()).toEqual({ turnstileSiteKey: 'site-key' });
+      expect((await app.inject({ method: 'GET', url: '/api/config' })).json()).toEqual({ turnstileSiteKey: 'site-key', termsVersion: TERMS_VERSION });
       const body = { email: 'bot@test.com', password: PASSWORD, confirmPassword: PASSWORD, ...PROFILE };
       const reg = (extra: object) => app.inject({ method: 'POST', url: '/api/auth/register', payload: { ...body, ...extra } });
       expect((await reg({})).statusCode).toBe(400);
@@ -511,6 +511,28 @@ describe('API accounts', () => {
       const { app } = await setup();
       const res = await app.inject({ method: 'GET', url: '/api/games', headers: { origin: 'https://evil.example' } });
       expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    });
+  });
+
+  describe('accepting changed Terms', () => {
+    it('shows the window on the home page until the current version is accepted', async () => {
+      const { app, db } = await setup();
+      const headers = await signIn(app);
+      // the admin account was made without accepting the Terms
+      expect((await app.inject({ method: 'GET', url: '/', headers })).body).toContain('id="terms-dlg"');
+      expect((await app.inject({ method: 'GET', url: '/api/config' })).json().termsVersion).toBe(TERMS_VERSION);
+
+      const old = await app.inject({ method: 'POST', url: '/api/account/accept-terms', headers, payload: { version: '0.1' } });
+      expect(old.statusCode).toBe(409);
+      const ok = await app.inject({ method: 'POST', url: '/api/account/accept-terms', headers, payload: { version: TERMS_VERSION } });
+      expect(ok.statusCode).toBe(200);
+      expect(ok.json().user.termsVersion).toBe(TERMS_VERSION);
+      expect((await app.inject({ method: 'GET', url: '/', headers })).body).not.toContain('id="terms-dlg"');
+
+      // an older accepted version asks again
+      db.prepare("UPDATE users SET terms_version = '0.9'").run();
+      expect((await app.inject({ method: 'GET', url: '/', headers })).body).toContain('Our Terms have changed');
+      expect((await app.inject({ method: 'POST', url: '/api/account/accept-terms', payload: { version: TERMS_VERSION } })).statusCode).toBe(401);
     });
   });
 });

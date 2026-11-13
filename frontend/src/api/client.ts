@@ -133,7 +133,9 @@ export const api = {
   activate: (token: string) => request<{ activated: boolean }>('/auth/activate', { method: 'POST', body: json({ token }) }),
   resendActivation: (email: string, captchaToken?: string) =>
     request<{ ok: boolean }>('/auth/resend', { method: 'POST', body: json({ email, captchaToken }) }),
-  config: () => request<{ turnstileSiteKey: string | null }>('/config'),
+  config: () => request<{ turnstileSiteKey: string | null; termsVersion: string }>('/config'),
+  acceptTerms: (version: string) =>
+    request<{ user: User }>('/account/accept-terms', { method: 'POST', body: json({ version }) }).then((r) => r.user),
   forgotPassword: (email: string, captchaToken?: string) =>
     request<{ ok: boolean }>('/auth/forgot', { method: 'POST', body: json({ email, captchaToken }) }),
   resetPassword: (body: { token: string; password: string; confirmPassword: string }) =>

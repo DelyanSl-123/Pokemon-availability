@@ -169,6 +169,14 @@ describe('report menu of games', () => {
     expect(signedIn).toContain('data-url="/api/favorites" data-signed="1"');
   });
 
+  it('asks a signed-in visitor to accept new Terms', () => {
+    const account = { name: 'Ivan', admin: false, profileUrl: '/app?account', logoutUrl: '/api/auth/logout' };
+    expect(buildReportHtml(summary, { account })).not.toContain('id="terms-dlg"');
+    const html = buildReportHtml(summary, { account: { ...account, termsPrompt: { version: '2.0', acceptUrl: '/api/account/accept-terms' } } });
+    expect(html).toContain('id="terms-dlg" aria-labelledby="terms-title" data-url="/api/account/accept-terms" data-version="2.0"');
+    expect(html).toContain('Our Terms have changed');
+  });
+
   it('links the logo to the home page', () => {
     expect(buildReportHtml(summary, { favoritesUrl: '/api/favorites' })).toContain('<a class="brand" href="/"');
     expect(buildReportHtml(summary, { seo: { baseUrl: 'https://x.bg/' } })).toContain('<a class="brand" href="https://x.bg/"');
