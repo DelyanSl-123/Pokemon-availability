@@ -809,7 +809,7 @@ ${head}
   ${crawlList}
 </main>
 
-<main class="wrap" id="fav-view" data-click="${esc(clickUrl)}" data-url="${esc(favoritesUrl)}" data-signed="${signedIn && favoritesUrl ? '1' : ''}" hidden>
+<main class="wrap" id="fav-view" data-url="${esc(favoritesUrl)}" data-signed="${signedIn && favoritesUrl ? '1' : ''}" data-click="${esc(clickUrl)}" hidden>
   <div class="cmp-top">
     <a class="btn ghost" href="#">← Back to products</a>
     <h2>Favourites</h2>
