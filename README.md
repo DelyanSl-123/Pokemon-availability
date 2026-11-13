@@ -173,3 +173,7 @@ The home page uses the catalog layout: search in the header, game buttons, filte
 Every check saves the price of each product once a day (table `price_history`). `GET /api/price-history?url=<product link>` returns the recorded days. On the website each product card has a "Price history" button that shows a chart with the current, lowest and highest price. The history starts on the day this version is deployed.
 
 The admin page of the app (`/app`) lists the shops suggested by visitors, with buttons to copy an address into "Add shop" or delete it.
+
+## Favourites
+
+Every product has a heart. Signed out, favourites are kept in the browser (`localStorage`); after signing in they move into the account automatically and the browser copy is cleared. Signed in, a click saves at once (`GET` / `POST` / `DELETE /api/favorites`, table `favorites`, up to 500 per account). The favourites page is `/#favorites` (heart in the header, link on the profile page). Favourites are part of "Download my data" and are deleted with the account.

@@ -443,4 +443,40 @@ describe('API accounts', () => {
       expect(none.json()).toEqual({ currency: null, points: [] });
     });
   });
+
+  describe('favourites', () => {
+    const item = { url: 'https://www.example.bg/p/1', title: 'Booster Box', shop: 'example.bg', game: 'pokemon', price: 100, currency: 'EUR', image: '' };
+
+    it('needs a signed-in visitor', async () => {
+      const { app } = await setup();
+      expect((await app.inject({ method: 'GET', url: '/api/favorites' })).statusCode).toBe(401);
+      expect((await app.inject({ method: 'POST', url: '/api/favorites', payload: { items: [item] } })).statusCode).toBe(401);
+    });
+
+    it('adds (once), lists with the latest price and removes', async () => {
+      const { app, db } = await setup();
+      const headers = await signIn(app);
+      const other = { ...item, url: 'https://www.example.bg/p/2', title: 'Tin' };
+      const added = await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { items: [item, other, item] } });
+      expect(added.statusCode).toBe(200);
+      expect(added.json()).toHaveLength(2);
+      expect(added.json().find((f: { url: string }) => f.url === item.url)).toMatchObject({ price: 100, tracked: false, inStock: null });
+
+      // once the product is checked, the favourite shows its current price and stock
+      const shop = (await app.inject({ method: 'POST', url: '/api/shops', headers, payload: { url: 'www.example.bg' } })).json();
+      upsertProduct(db, shop.id, { url: item.url, title: 'Booster Box', price: 89, currency: 'EUR', inStock: true, imageUrl: null }, '2026-11-02T09:00:00.000Z');
+      const list = (await app.inject({ method: 'GET', url: '/api/favorites', headers })).json();
+      expect(list.find((f: { url: string }) => f.url === item.url)).toMatchObject({ price: 89, tracked: true, inStock: true });
+
+      await app.inject({ method: 'DELETE', url: `/api/favorites?url=${encodeURIComponent(item.url)}`, headers });
+      expect((await app.inject({ method: 'GET', url: '/api/favorites', headers })).json()).toHaveLength(1);
+    });
+
+    it('rejects links that are not web addresses', async () => {
+      const { app } = await setup();
+      const headers = await signIn(app);
+      const res = await app.inject({ method: 'POST', url: '/api/favorites', headers, payload: { items: [{ ...item, url: 'javascript:alert(1)' }] } });
+      expect(res.statusCode).toBe(400);
+    });
+  });
 });

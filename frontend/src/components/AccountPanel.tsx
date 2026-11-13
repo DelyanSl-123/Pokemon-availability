@@ -104,6 +104,11 @@ export function AccountPanel({
         <div className="row">
           {page ? <h1>My account</h1> : <h2>My account</h2>}
           <div className="row">
+            {page && (
+              <a className="btnlink" href="/#favorites">
+                My favourites
+              </a>
+            )}
             {page && isAdmin && (
               <a className="btnlink" href="/app">
                 Admin page
